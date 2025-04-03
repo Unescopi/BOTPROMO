@@ -8,6 +8,7 @@ module.exports = {
   server: {
     port: process.env.PORT || 3000,
     environment: process.env.NODE_ENV || 'development',
+    baseUrl: process.env.BASE_URL || 'http://localhost:3001'
   },
   
   // Configurações do MongoDB
@@ -19,6 +20,7 @@ module.exports = {
   webhook: {
     enabled: process.env.WEBHOOK_ENABLED === 'true',
     secret: process.env.WEBHOOK_SECRET || 'webhook-default-secret',
+    path: '/api/webhook'
   },
   
   // Configurações JWT

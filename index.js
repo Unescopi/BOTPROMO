@@ -13,9 +13,6 @@ const routes = require('./src/routes');
 // Inicializando o agendador de tarefas
 const schedulerService = require('./src/services/schedulerService');
 
-// Inicializando o serviço da Evolution API
-const evolutionApiService = require('./src/services/evolutionApi');
-
 // Inicialização do app Express
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -71,18 +68,9 @@ app.get('/reset-password', (req, res) => {
 app.listen(PORT, () => {
   logger.info(`Servidor rodando na porta ${PORT}`);
   
-  // Inicializando conexão com a Evolution API
-  evolutionApiService.checkConnection()
-    .then(connected => {
-      if (connected) {
-        logger.info('Conectado à Evolution API com sucesso!');
-      } else {
-        logger.warn('Não foi possível conectar à Evolution API. Verifique suas configurações.');
-      }
-    })
-    .catch(err => {
-      logger.error(`Erro ao conectar com a Evolution API: ${err.message}`);
-    });
+  // Bot configurado para operar apenas via webhook
+  logger.info('Bot de Promoções inicializado no modo webhook');
+  logger.info(`Configure a URL do webhook no painel da Evolution API: ${process.env.BASE_URL || 'http://seu-dominio.com'}/api/webhook`);
   
   // Inicializando o agendador de tarefas
   schedulerService.initScheduler();
