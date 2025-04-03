@@ -34,7 +34,7 @@ app.use(express.static(path.join(__dirname, 'src/public')));
 // Rota específica para servir páginas HTML
 app.get('/pages/:page', (req, res) => {
   const pageName = req.params.page;
-  const filePath = path.join(__dirname, 'src/public/pages', pageName);
+  const filePath = path.join(__dirname, 'src/public/pages', `${pageName}.html`);
   res.sendFile(filePath);
 });
 
