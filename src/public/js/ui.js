@@ -4,13 +4,12 @@
  * Este arquivo controla as interações de UI, navegação e exibição de elementos
  * na interface do Bot de Cafeteria, seguindo uma arquitetura modular.
  * 
- * Versão: 2.0
+ * Versão: 2.1 - Modo Webhook
  */
 
 class UI {
   constructor() {
     this.currentPage = null;
-    this.sidebarLoaded = false;
     this.appInitialized = false;
     this.BASE_URL = window.location.origin;
     this.API_BASE = `${this.BASE_URL}/api`;
@@ -25,7 +24,6 @@ class UI {
   async init() {
     console.log('Inicializando UI...');
     
-    this.loadSidebar();
     this.setupPageEvents();
     this.setupNavigation();
     
@@ -33,31 +31,11 @@ class UI {
     const targetPage = this.getTargetPageFromUrl();
     this.showPage(targetPage);
     
-    // Inicializa componentes específicos da página
-    this.initPageComponents(targetPage);
+    // Atualiza informações do webhook
+    this.updateWebhookInfo();
     
     this.appInitialized = true;
     console.log('UI inicializada com sucesso!');
-  }
-
-  /**
-   * Carrega a barra lateral
-   */
-  async loadSidebar() {
-    if (this.sidebarLoaded) return;
-    
-    try {
-      const response = await fetch('/pages/components/sidebar.html');
-      if (!response.ok) throw new Error('Falha ao carregar a barra lateral');
-      
-      const content = await response.text();
-      document.getElementById('sidebar-container').innerHTML = content;
-      
-      this.sidebarLoaded = true;
-      console.log('Barra lateral carregada com sucesso');
-    } catch (error) {
-      console.error('Erro ao carregar a barra lateral:', error);
-    }
   }
 
   /**
@@ -66,17 +44,17 @@ class UI {
   setupNavigation() {
     // Delega evento para links de navegação
     document.addEventListener('click', (e) => {
-      const navLink = e.target.closest('[data-nav]');
+      const navLink = e.target.closest('.nav-link');
       if (navLink) {
         e.preventDefault();
-        const targetPage = navLink.getAttribute('data-nav');
-        
-        // Atualiza a URL com o nome da página
-        window.history.pushState({}, '', `/${targetPage}`);
-        
-        // Carrega a página
-        this.showPage(targetPage);
-        this.initPageComponents(targetPage);
+        const targetPage = navLink.getAttribute('data-page');
+        if (targetPage) {
+          // Atualiza a URL com o nome da página
+          window.history.pushState({}, '', `/${targetPage}`);
+          
+          // Carrega a página
+          this.showPage(targetPage);
+        }
       }
     });
 
@@ -84,7 +62,6 @@ class UI {
     window.addEventListener('popstate', () => {
       const targetPage = this.getTargetPageFromUrl();
       this.showPage(targetPage);
-      this.initPageComponents(targetPage);
     });
   }
 
@@ -145,20 +122,19 @@ class UI {
         const content = await response.text();
         mainContent.innerHTML = content;
         
+        // Atualiza a página atual
         this.currentPage = pageName;
+        
+        // Inicializa componentes específicos da página
+        this.initPageComponents(pageName);
+        
         console.log(`Página "${pageName}" carregada com sucesso`);
       } catch (error) {
         console.error(`Erro ao carregar página "${pageName}":`, error);
-        
-        // Fallback para dashboard em caso de erro
-        if (pageName !== 'dashboard') {
-          this.showPage('dashboard');
-        } else {
-          mainContent.innerHTML = '<div class="alert alert-danger m-5">Erro ao carregar a página. Por favor, tente novamente.</div>';
-        }
+        mainContent.innerHTML = `<div class="alert alert-danger">Erro ao carregar página: ${error.message}</div>`;
       }
     } catch (error) {
-      console.error('Erro ao alternar páginas:', error);
+      console.error('Erro ao mostrar página:', error);
     }
   }
 
@@ -166,22 +142,23 @@ class UI {
    * Atualiza links ativos na barra lateral
    */
   updateActiveNav(pageName) {
-    document.querySelectorAll('[data-nav]').forEach(link => {
-      const target = link.getAttribute('data-nav');
-      if (target === pageName) {
-        link.classList.add('active');
-      } else {
-        link.classList.remove('active');
-      }
+    // Remove classe ativa de todos os links
+    document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+      link.classList.remove('active');
     });
+    
+    // Adiciona classe ativa ao link da página atual
+    document.querySelector(`.navbar-nav .nav-link[data-page="${pageName}"]`)?.classList.add('active');
   }
 
   /**
    * Inicializa componentes específicos para cada página
    */
   initPageComponents(pageName) {
-    console.log(`Inicializando componentes da página: ${pageName}`);
+    // Limpa quaisquer componentes de página anterior
+    // (como modais, popovers, etc)
     
+    // Inicializa componentes específicos da página
     switch (pageName) {
       case 'dashboard':
         this.initDashboard();
@@ -204,43 +181,51 @@ class UI {
   /**
    * Inicializa o dashboard
    */
-  async initDashboard() {
-    console.log('Inicializando Dashboard...');
-    
-    // Obtém informações do webhook
-    this.updateWebhookInfo();
+  initDashboard() {
+    console.log('Inicializando dashboard...');
     
     // Atualiza estatísticas
     this.updateDashboardStats();
     
-    // Inicializa os gráficos se existirem
-    if (document.getElementById('messagesChart')) {
+    // Inicializa gráficos se existirem
+    if (document.getElementById('messagesChart') && document.getElementById('engagementChart')) {
       this.initCharts();
     }
     
     // Carrega promoções recentes
     this.loadRecentPromotions();
+    
+    // Exibe informações do webhook
+    this.updateWebhookInfo();
+    
+    console.log('Dashboard inicializado com sucesso');
   }
 
   /**
    * Copia a URL do webhook para o clipboard
    */
   copyWebhookUrl() {
-    const webhookUrl = document.getElementById('webhook-url').textContent;
-    navigator.clipboard.writeText(webhookUrl)
-      .then(() => {
-        // Mostra feedback de copiado
-        const btn = document.getElementById('copy-webhook-url');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="bi bi-check"></i> Copiado!';
-        
-        setTimeout(() => {
-          btn.innerHTML = originalText;
-        }, 2000);
-      })
-      .catch(err => {
-        console.error('Erro ao copiar URL:', err);
-      });
+    try {
+      const webhookUrl = document.getElementById('webhook-url').textContent;
+      navigator.clipboard.writeText(webhookUrl)
+        .then(() => {
+          // Feedback visual
+          const copyBtn = document.getElementById('copy-webhook-url');
+          const originalText = copyBtn.innerHTML;
+          copyBtn.innerHTML = '<i class="bi bi-check"></i> Copiado!';
+          
+          setTimeout(() => {
+            copyBtn.innerHTML = originalText;
+          }, 2000);
+          
+          console.log('URL do webhook copiada para o clipboard');
+        })
+        .catch(err => {
+          console.error('Erro ao copiar URL:', err);
+        });
+    } catch (error) {
+      console.error('Erro ao copiar URL do webhook:', error);
+    }
   }
 
   /**
@@ -248,19 +233,23 @@ class UI {
    */
   async updateWebhookInfo() {
     try {
-      const response = await fetch(`${this.API_BASE}/webhook-info`);
-      if (!response.ok) throw new Error('Erro ao obter informações do webhook');
-      
-      const data = await response.json();
-      
-      // Atualiza a URL do webhook no dashboard
-      const webhookUrlElement = document.getElementById('webhook-url');
-      if (webhookUrlElement) {
-        webhookUrlElement.textContent = data.webhookUrl;
+      const webhookUrl = document.getElementById('webhook-url');
+      if (webhookUrl) {
+        const response = await fetch(`${this.API_BASE}/webhook-info`);
+        if (response.ok) {
+          const data = await response.json();
+          webhookUrl.textContent = data.url || `${window.location.origin}/api/webhook`;
+          console.log('Informações do webhook atualizadas');
+        } else {
+          console.error('Erro ao obter informações do webhook');
+          webhookUrl.textContent = `${window.location.origin}/api/webhook`;
+        }
       }
-      
     } catch (error) {
       console.error('Erro ao atualizar informações do webhook:', error);
+      if (document.getElementById('webhook-url')) {
+        document.getElementById('webhook-url').textContent = `${window.location.origin}/api/webhook`;
+      }
     }
   }
 
@@ -269,9 +258,7 @@ class UI {
    */
   async updateDashboardStats() {
     try {
-      // Faz chamada à API para obter estatísticas
       const response = await fetch(`${this.API_BASE}/stats`);
-      
       if (!response.ok) {
         throw new Error('Falha ao obter estatísticas');
       }
@@ -279,20 +266,25 @@ class UI {
       const stats = await response.json();
       
       // Atualiza os contadores
-      document.getElementById('clients-count').textContent = stats.clientsCount || 0;
-      document.getElementById('messages-count').textContent = stats.messagesCount || 0;
-      document.getElementById('promotions-count').textContent = stats.promotionsCount || 0;
-      document.getElementById('delivery-rate').textContent = `${stats.deliveryRate || 0}%`;
+      if (document.getElementById('clients-count')) {
+        document.getElementById('clients-count').textContent = stats.clients || 0;
+      }
       
-      console.log('Estatísticas atualizadas com sucesso');
+      if (document.getElementById('messages-count')) {
+        document.getElementById('messages-count').textContent = stats.messages || 0;
+      }
+      
+      if (document.getElementById('promotions-count')) {
+        document.getElementById('promotions-count').textContent = stats.promotions || 0;
+      }
+      
+      if (document.getElementById('delivery-rate')) {
+        document.getElementById('delivery-rate').textContent = stats.deliveryRate || '0%';
+      }
+      
+      console.log('Estatísticas do dashboard atualizadas');
     } catch (error) {
       console.error('Erro ao atualizar estatísticas:', error);
-      
-      // Em caso de erro, mostra valores placeholder
-      document.getElementById('clients-count').textContent = '0';
-      document.getElementById('messages-count').textContent = '0';
-      document.getElementById('promotions-count').textContent = '0';
-      document.getElementById('delivery-rate').textContent = '0%';
     }
   }
 
@@ -375,46 +367,57 @@ class UI {
       
       const tbody = promotionsTable.querySelector('tbody');
       
-      // Exemplo de dados de promoções (em produção, viria da API)
-      const promotions = [
-        {
-          name: 'Café da Manhã - 20% OFF',
-          date: '2025-03-28',
-          recipients: 120,
-          status: 'Enviada',
-          openRate: '45%'
-        },
-        {
-          name: 'Happy Hour - 2 por 1',
-          date: '2025-03-25',
-          recipients: 85,
-          status: 'Enviada',
-          openRate: '62%'
-        },
-        {
-          name: 'Doce do Dia',
-          date: '2025-03-22',
-          recipients: 150,
-          status: 'Enviada',
-          openRate: '38%'
+      // Tenta obter promoções da API
+      try {
+        const response = await fetch(`${this.API_BASE}/promotions/recent`);
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Limpa a tabela
+          tbody.innerHTML = '';
+          
+          if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">Nenhuma promoção recente</td></tr>';
+            return;
+          }
+          
+          // Adiciona as promoções
+          data.forEach(promo => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${promo.name}</td>
+              <td>${new Date(promo.date).toLocaleDateString()}</td>
+              <td>${promo.recipients}</td>
+              <td><span class="badge bg-${promo.status === 'Enviada' ? 'success' : 'warning'}">${promo.status}</span></td>
+              <td>${promo.openRate}</td>
+            `;
+            tbody.appendChild(row);
+          });
+        } else {
+          throw new Error('Falha ao carregar promoções');
         }
-      ];
-      
-      // Limpa a tabela
-      tbody.innerHTML = '';
-      
-      // Adiciona as promoções
-      promotions.forEach(promo => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${promo.name}</td>
-          <td>${new Date(promo.date).toLocaleDateString()}</td>
-          <td>${promo.recipients}</td>
-          <td><span class="badge bg-success">${promo.status}</span></td>
-          <td>${promo.openRate}</td>
-        `;
-        tbody.appendChild(row);
-      });
+      } catch (error) {
+        console.error('Erro na API:', error);
+        
+        // Mostra dados de exemplo em caso de falha
+        tbody.innerHTML = '';
+        const examples = [
+          { name: 'Café da Manhã - 20% OFF', date: '2025-03-28', recipients: 120, status: 'Enviada', openRate: '45%' },
+          { name: 'Happy Hour - 2 por 1', date: '2025-03-25', recipients: 85, status: 'Enviada', openRate: '62%' }
+        ];
+        
+        examples.forEach(promo => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${promo.name}</td>
+            <td>${new Date(promo.date).toLocaleDateString()}</td>
+            <td>${promo.recipients}</td>
+            <td><span class="badge bg-success">${promo.status}</span></td>
+            <td>${promo.openRate}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
       
       console.log('Promoções recentes carregadas');
     } catch (error) {
@@ -427,6 +430,7 @@ class UI {
    */
   initClientsPage() {
     console.log('Página de clientes inicializada');
+    // Adicione aqui a lógica para a página de clientes
   }
 
   /**
@@ -434,6 +438,7 @@ class UI {
    */
   initPromotionsPage() {
     console.log('Página de promoções inicializada');
+    // Adicione aqui a lógica para a página de promoções
   }
 
   /**
@@ -441,6 +446,7 @@ class UI {
    */
   initMessagesPage() {
     console.log('Página de mensagens inicializada');
+    // Adicione aqui a lógica para a página de mensagens
   }
 
   /**
@@ -448,6 +454,7 @@ class UI {
    */
   initSettingsPage() {
     console.log('Página de configurações inicializada');
+    // Adicione aqui a lógica para a página de configurações
   }
 }
 

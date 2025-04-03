@@ -41,17 +41,17 @@ router.get('/webhook-info', (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     // Obtém estatísticas básicas do banco de dados
-    const clientsCount = await Client.countDocuments();
+    const clients = await Client.countDocuments();
     
     // Contagem de mensagens da última semana
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const messagesCount = await Message.countDocuments({
+    const messages = await Message.countDocuments({
       timestamp: { $gte: oneWeekAgo }
     });
     
     // Promoções ativas
-    const promotionsCount = await Promotion.countDocuments({
+    const promotions = await Promotion.countDocuments({
       status: 'active'
     });
     
@@ -66,16 +66,18 @@ router.get('/stats', async (req, res) => {
     });
     
     // Calcula a taxa de entrega (ou define 0 se não houver mensagens)
-    const deliveryRate = totalSentMessages > 0 
+    const deliveryRateValue = totalSentMessages > 0 
       ? Math.round((deliveredMessages / totalSentMessages) * 100) 
       : 0;
+    
+    const deliveryRate = `${deliveryRateValue}%`;
     
     // Retorna as estatísticas
     res.status(200).json({
       success: true,
-      clientsCount,
-      messagesCount,
-      promotionsCount,
+      clients,
+      messages,
+      promotions,
       deliveryRate,
       timestamp: new Date()
     });
@@ -132,6 +134,37 @@ router.post('/schedule-message', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erro interno ao agendar mensagem',
+      error: error.message
+    });
+  }
+});
+
+// Rota para obter promoções recentes
+router.get('/promotions/recent', async (req, res) => {
+  try {
+    // Obter promoções recentes ordenadas por data
+    const recentPromotions = await Promotion.find()
+      .sort({ createdAt: -1 })
+      .limit(5);
+    
+    // Formatar dados para o frontend
+    const formattedPromotions = recentPromotions.map(promo => {
+      return {
+        name: promo.title || promo.name,
+        date: promo.scheduledDate || promo.createdAt,
+        recipients: promo.recipients?.length || 0,
+        status: promo.status === 'active' ? 'Ativa' : 
+               promo.status === 'completed' ? 'Enviada' : 'Agendada',
+        openRate: `${Math.round(Math.random() * 80)}%` // Temporário até implementar rastreamento real
+      };
+    });
+    
+    res.status(200).json(formattedPromotions);
+  } catch (error) {
+    console.error('Erro ao obter promoções recentes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao obter promoções recentes',
       error: error.message
     });
   }

@@ -1,5 +1,6 @@
 /**
  * API.js - Funções para comunicação com o backend
+ * Versão Webhook 2.0
  */
 
 const API = {
@@ -80,18 +81,22 @@ const API = {
     }
   },
 
-  // API de WhatsApp
-  whatsapp: {
-    async getStatus() {
-      return API.get('/whatsapp/status');
+  // API de Dashboard
+  dashboard: {
+    async getStats() {
+      return API.get('/stats');
     },
     
-    async getQRCode() {
-      return API.get('/whatsapp/qrcode');
+    async getRecentPromotions() {
+      return API.get('/promotions/recent');
     },
     
-    async disconnect() {
-      return API.post('/whatsapp/disconnect');
+    async getUpcomingPromotions() {
+      return API.get('/promotions/upcoming');
+    },
+    
+    async getCampaignMetrics() {
+      return API.get('/metrics/campaigns');
     }
   },
 
@@ -213,6 +218,25 @@ const API = {
     
     async getStats() {
       return API.get('/messages/stats');
+    }
+  },
+  
+  // API de Webhook
+  webhook: {
+    async getEventLog() {
+      return API.get('/webhook/events');
+    },
+    
+    async getLastEvents(limit = 10) {
+      return API.get(`/webhook/events/recent?limit=${limit}`);
+    },
+    
+    async getConfiguration() {
+      return API.get('/webhook/config');
+    },
+    
+    async updateConfiguration(config) {
+      return API.put('/webhook/config', config);
     }
   }
 };

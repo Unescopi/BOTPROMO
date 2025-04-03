@@ -1,5 +1,6 @@
 /**
  * App.js - Arquivo principal que inicializa a aplicação
+ * Versão Webhook 2.0
  */
 
 // Objeto principal da aplicação
@@ -7,7 +8,11 @@ const App = {
   // Inicialização da aplicação
   init() {
     // Inicializa a interface do usuário
-    UI.init();
+    if (window.appUI) {
+      console.log('UI já inicializada');
+    } else {
+      window.appUI = new UI();
+    }
     
     // Carrega os dados iniciais
     this.loadDashboardData();
@@ -21,17 +26,11 @@ const App = {
   // Carrega os dados para o dashboard
   async loadDashboardData() {
     try {
-      // Carrega estatísticas de clientes
-      const clientStats = await API.clients.getStats();
-      this.updateClientStats(clientStats);
+      // Obter estatísticas gerais
+      const stats = await this.fetchStats();
       
-      // Carrega estatísticas de promoções
-      const promoStats = await API.promotions.getStats();
-      this.updatePromoStats(promoStats);
-      
-      // Carrega estatísticas de mensagens
-      const messageStats = await API.messages.getStats();
-      this.updateMessageStats(messageStats);
+      // Atualiza as estatísticas no dashboard
+      this.updateDashboardStats(stats);
       
       // Carrega promoções recentes e próximas
       this.loadRecentPromotions();
@@ -39,62 +38,70 @@ const App = {
       
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error);
-      UI.showToast('Erro ao carregar dados do dashboard. Verifique a conexão com o servidor.', 'danger');
+      this.showToast('Erro ao carregar dados do dashboard. Verifique a conexão com o servidor.', 'danger');
     }
   },
 
-  // Atualiza as estatísticas de clientes no dashboard
-  updateClientStats(stats) {
-    if (!stats) return;
-    
-    document.querySelector('.client-count').textContent = stats.total || 0;
-    document.querySelector('.new-clients').textContent = stats.newThisMonth || 0;
-  },
-
-  // Atualiza as estatísticas de promoções no dashboard
-  updatePromoStats(stats) {
-    if (!stats) return;
-    
-    document.querySelector('.active-promos').textContent = stats.active || 0;
-    document.querySelector('.scheduled-promos').textContent = stats.scheduled || 0;
-  },
-
-  // Atualiza as estatísticas de mensagens no dashboard
-  updateMessageStats(stats) {
-    if (!stats) return;
-    
-    document.querySelector('.messages-sent').textContent = stats.sent || 0;
-    document.querySelector('.delivery-rate').textContent = stats.deliveryRate || 0;
-    document.querySelector('.read-rate').textContent = `${stats.readRate || 0}%`;
-    document.querySelector('.response-count').textContent = stats.responses || 0;
-    
-    // Atualiza o gráfico de status de mensagens se disponível
-    if (UI.messageStatusChart && stats.statusBreakdown) {
-      UI.messageStatusChart.data.datasets[0].data = [
-        stats.statusBreakdown.sent || 0,
-        stats.statusBreakdown.delivered || 0,
-        stats.statusBreakdown.read || 0,
-        stats.statusBreakdown.failed || 0
-      ];
-      UI.messageStatusChart.update();
+  // Busca estatísticas da API
+  async fetchStats() {
+    try {
+      const response = await fetch('/api/stats');
+      if (!response.ok) {
+        throw new Error('Falha ao obter estatísticas');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas:', error);
+      return null;
     }
+  },
+
+  // Atualiza todas as estatísticas no dashboard
+  updateDashboardStats(stats) {
+    if (!stats) return;
+    
+    // Atualiza estatísticas de clientes
+    const clientCount = document.querySelector('.client-count');
+    if (clientCount) clientCount.textContent = stats.clients || 0;
+    
+    const newClients = document.querySelector('.new-clients');
+    if (newClients) newClients.textContent = stats.newClients || 0;
+    
+    // Atualiza estatísticas de promoções
+    const activePromos = document.querySelector('.active-promos');
+    if (activePromos) activePromos.textContent = stats.promotions || 0;
+    
+    const scheduledPromos = document.querySelector('.scheduled-promos');
+    if (scheduledPromos) scheduledPromos.textContent = stats.scheduledPromotions || 0;
+    
+    // Atualiza estatísticas de mensagens
+    const messagesSent = document.querySelector('.messages-sent');
+    if (messagesSent) messagesSent.textContent = stats.messages || 0;
+    
+    const deliveryRate = document.querySelector('.delivery-rate');
+    if (deliveryRate) deliveryRate.textContent = stats.deliveryRate?.replace('%', '') || 0;
+    
+    const readRate = document.querySelector('.read-rate');
+    if (readRate) readRate.textContent = stats.readRate || '0%';
+    
+    const responseCount = document.querySelector('.response-count');
+    if (responseCount) responseCount.textContent = stats.responses || 0;
   },
 
   // Carrega as promoções recentes
   async loadRecentPromotions() {
     try {
-      const promotions = await API.promotions.getAll();
       const recentPromosContainer = document.getElementById('recent-promos');
-      
       if (!recentPromosContainer) return;
       
-      // Filtra as promoções recentes (últimas 5)
-      const recentPromos = promotions
-        .filter(promo => promo.status === 'completed' || promo.status === 'active')
-        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-        .slice(0, 5);
+      const response = await fetch('/api/promotions/recent');
+      if (!response.ok) {
+        throw new Error('Falha ao obter promoções recentes');
+      }
       
-      if (recentPromos.length === 0) {
+      const promotions = await response.json();
+      
+      if (promotions.length === 0) {
         recentPromosContainer.innerHTML = `
           <div class="list-group-item text-center py-5">
             <i class="fas fa-info-circle me-2"></i>Nenhuma promoção recente
@@ -104,19 +111,19 @@ const App = {
       }
       
       // Renderiza as promoções recentes
-      recentPromosContainer.innerHTML = recentPromos.map(promo => `
-        <div class="list-group-item promo-item ${promo.status}">
+      recentPromosContainer.innerHTML = promotions.map(promo => `
+        <div class="list-group-item promo-item ${promo.status === 'Enviada' ? 'completed' : 'active'}">
           <div class="d-flex w-100 justify-content-between">
             <h6 class="mb-1">${promo.name}</h6>
-            <small class="text-muted">${this.formatDate(promo.updatedAt)}</small>
+            <small class="text-muted">${this.formatDate(promo.date)}</small>
           </div>
-          <p class="mb-1 text-truncate-2">${promo.description}</p>
+          <p class="mb-1 text-truncate-2">${promo.description || 'Promoção especial'}</p>
           <div class="d-flex justify-content-between align-items-center">
             <small class="text-muted">
-              <i class="fas fa-paper-plane me-1"></i>${promo.stats?.sent || 0} mensagens enviadas
+              <i class="fas fa-users me-1"></i>${promo.recipients} destinatários
             </small>
-            <span class="badge bg-${promo.status === 'active' ? 'success' : 'secondary'} rounded-pill">
-              ${promo.status === 'active' ? 'Ativa' : 'Concluída'}
+            <span class="badge bg-${promo.status === 'Enviada' ? 'success' : 'primary'}">
+              ${promo.status}
             </span>
           </div>
         </div>
@@ -124,22 +131,26 @@ const App = {
       
     } catch (error) {
       console.error('Erro ao carregar promoções recentes:', error);
+      if (document.getElementById('recent-promos')) {
+        document.getElementById('recent-promos').innerHTML = `
+          <div class="list-group-item text-center py-3">
+            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+            Erro ao carregar promoções
+          </div>
+        `;
+      }
     }
   },
 
   // Carrega as próximas promoções agendadas
   async loadUpcomingPromotions() {
     try {
-      const promotions = await API.promotions.getAll();
       const upcomingPromosContainer = document.getElementById('upcoming-promos');
-      
       if (!upcomingPromosContainer) return;
       
-      // Filtra as promoções agendadas (próximas 5)
-      const upcomingPromos = promotions
-        .filter(promo => promo.status === 'scheduled')
-        .sort((a, b) => new Date(a.schedule.startDate) - new Date(b.schedule.startDate))
-        .slice(0, 5);
+      // Em produção, você buscaria isso da API
+      // Por enquanto, usamos dados de exemplo (ou poderia buscar de uma rota específica)
+      const upcomingPromos = [];
       
       if (upcomingPromos.length === 0) {
         upcomingPromosContainer.innerHTML = `
@@ -155,18 +166,18 @@ const App = {
         <div class="list-group-item promo-item scheduled">
           <div class="d-flex w-100 justify-content-between">
             <h6 class="mb-1">${promo.name}</h6>
-            <small class="text-muted">${this.formatDate(promo.schedule.startDate)}</small>
+            <small class="text-muted">${this.formatDate(promo.scheduleDate)}</small>
           </div>
-          <p class="mb-1 text-truncate-2">${promo.description}</p>
+          <p class="mb-1 text-truncate-2">${promo.description || 'Promoção agendada'}</p>
           <div class="d-flex justify-content-between align-items-center">
             <small class="text-muted">
-              <i class="fas fa-clock me-1"></i>${this.formatTime(promo.schedule.startDate)}
+              <i class="fas fa-clock me-1"></i>${this.formatTime(promo.scheduleDate)}
             </small>
             <div>
-              <button class="btn btn-sm btn-outline-secondary me-1" data-promo-id="${promo._id}" data-action="edit">
+              <button class="btn btn-sm btn-outline-secondary me-1" data-promo-id="${promo.id}" data-action="edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <button class="btn btn-sm btn-outline-danger" data-promo-id="${promo._id}" data-action="cancel">
+              <button class="btn btn-sm btn-outline-danger" data-promo-id="${promo.id}" data-action="cancel">
                 <i class="fas fa-times"></i>
               </button>
             </div>
@@ -190,29 +201,32 @@ const App = {
 
   // Configura atualizações periódicas
   setupPeriodicUpdates() {
-    // Verifica o status do WhatsApp a cada 30 segundos
-    setInterval(() => {
-      UI.checkWhatsAppStatus();
-    }, 30000);
-    
     // Atualiza os dados do dashboard a cada 5 minutos
     setInterval(() => {
       this.loadDashboardData();
     }, 300000);
   },
 
+  // Exibe um toast de notificação
+  showToast(message, type = 'info') {
+    // Implementação simplificada - em produção, você poderia usar um componente de toast
+    console.log(`[${type.toUpperCase()}] ${message}`);
+    // Alternativa: alert(message);
+  },
+
   // Edita uma promoção existente
   async editPromotion(promoId) {
     try {
       // Redireciona para a página de promoções com o ID da promoção
-      UI.showPage('promotions');
+      if (window.appUI) {
+        window.appUI.showPage('promotions');
+      }
       
       // Aqui você adicionaria código para carregar o formulário de edição
-      // com os dados da promoção específica
       
     } catch (error) {
       console.error('Erro ao editar promoção:', error);
-      UI.showToast('Erro ao editar promoção', 'danger');
+      this.showToast('Erro ao editar promoção', 'danger');
     }
   },
 
@@ -221,15 +235,19 @@ const App = {
     if (!confirm('Tem certeza que deseja cancelar esta promoção?')) return;
     
     try {
-      await API.promotions.cancel(promoId);
-      UI.showToast('Promoção cancelada com sucesso', 'success');
+      const response = await fetch(`/api/promotions/${promoId}/cancel`, {
+        method: 'POST'
+      });
       
-      // Recarrega os dados
-      this.loadUpcomingPromotions();
-      
+      if (response.ok) {
+        this.showToast('Promoção cancelada com sucesso', 'success');
+        this.loadUpcomingPromotions();
+      } else {
+        throw new Error('Falha ao cancelar promoção');
+      }
     } catch (error) {
       console.error('Erro ao cancelar promoção:', error);
-      UI.showToast('Erro ao cancelar promoção', 'danger');
+      this.showToast('Erro ao cancelar promoção', 'danger');
     }
   },
 
