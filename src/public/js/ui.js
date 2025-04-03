@@ -6,7 +6,6 @@ const UI = {
   // Inicialização da UI
   init() {
     this.setupNavigation();
-    this.setupWhatsAppConnection();
     this.setupFormHandlers();
     this.initCharts();
   },
@@ -87,16 +86,14 @@ const UI = {
     
     try {
       // Carrega o conteúdo da página via AJAX
-      const response = await fetch(`/src/public/pages/${pageId}.html`);
+      console.log(`Tentando carregar página de: /pages/${pageId}.html`);
+      const response = await fetch(`/pages/${pageId}.html`);
+      
       if (!response.ok) {
-        // Tenta um caminho alternativo se o primeiro falhar
-        const altResponse = await fetch(`/pages/${pageId}.html`);
-        if (!altResponse.ok) throw new Error(`Erro HTTP: ${altResponse.status}`);
-        var html = await altResponse.text();
-      } else {
-        var html = await response.text();
+        throw new Error(`Erro HTTP: ${response.status}`);
       }
       
+      const html = await response.text();
       targetPage.innerHTML = html;
       
       // Marca a página como carregada
@@ -116,230 +113,305 @@ const UI = {
   // Inicializa componentes específicos de cada página
   initPageComponents(pageId) {
     switch (pageId) {
+      case 'dashboard':
+        this.initCharts();
+        this.loadDashboardStats();
+        break;
+      
       case 'clients':
-        this.initClientsPage();
+        this.loadClients();
         break;
+        
       case 'promotions':
-        this.initPromotionsPage();
+        this.initPromotionForm();
         break;
+        
       case 'messages':
-        this.initMessagesPage();
+        this.loadMessages();
         break;
+        
       case 'settings':
-        this.initSettingsPage();
-        break;
-      default:
-        // Nada a fazer para outras páginas
+        this.loadSettings();
         break;
     }
   },
-
-  // Configuração da conexão com WhatsApp
-  setupWhatsAppConnection() {
-    // Botão para conectar WhatsApp
-    document.getElementById('connect-whatsapp')?.addEventListener('click', () => {
-      this.showQRCodeModal();
-    });
-    
-    // Botão para atualizar QR Code
-    document.getElementById('refresh-qrcode')?.addEventListener('click', () => {
-      this.refreshQRCode();
-    });
-    
-    // Verifica o status da conexão ao iniciar
-    this.checkWhatsAppStatus();
-  },
-
-  // Verifica o status da conexão com WhatsApp
-  async checkWhatsAppStatus() {
+  
+  // Carrega estatísticas para o dashboard
+  async loadDashboardStats() {
     try {
-      const statusData = await API.whatsapp.getStatus();
-      this.updateWhatsAppStatus(statusData.connected);
-    } catch (error) {
-      console.error('Erro ao verificar status do WhatsApp:', error);
-      this.updateWhatsAppStatus(false);
-    }
-  },
-
-  // Atualiza a UI com o status da conexão
-  updateWhatsAppStatus(isConnected) {
-    const statusIcon = document.querySelector('.status-icon');
-    const statusText = document.querySelector('.status-text');
-    const whatsappAlert = document.getElementById('whatsapp-alert');
-    
-    if (isConnected) {
-      statusIcon.classList.remove('offline', 'connecting');
-      statusIcon.classList.add('online');
-      statusText.textContent = 'Conectado';
+      const response = await fetch('/api/stats');
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
       
-      // Esconde o alerta
-      whatsappAlert.classList.add('d-none');
-    } else {
-      statusIcon.classList.remove('online', 'connecting');
-      statusIcon.classList.add('offline');
-      statusText.textContent = 'Desconectado';
+      const stats = await response.json();
       
-      // Mostra o alerta
-      whatsappAlert.classList.remove('d-none');
-    }
-  },
-
-  // Exibe o modal com QR Code para conexão
-  async showQRCodeModal() {
-    const modal = new bootstrap.Modal(document.getElementById('qrCodeModal'));
-    modal.show();
-    
-    // Limpa o container do QR Code
-    const qrContainer = document.getElementById('qrcode-container');
-    qrContainer.innerHTML = '<div class="spinner-border text-success" role="status"><span class="visually-hidden">Carregando...</span></div>';
-    
-    try {
-      // Obtém o QR Code
-      const qrData = await API.whatsapp.getQRCode();
+      // Atualiza contadores
+      document.getElementById('clients-count').textContent = stats.totalClients || '0';
+      document.getElementById('messages-count').textContent = stats.weeklyMessages || '0';
+      document.getElementById('promotions-count').textContent = stats.activePromotions || '0';
+      document.getElementById('delivery-rate').textContent = `${stats.deliveryRate || '0'}%`;
       
-      if (qrData && qrData.qrcode) {
-        // Exibe o QR Code
-        qrContainer.innerHTML = `<img id="qrcode-img" src="${qrData.qrcode}" alt="QR Code WhatsApp">`;
+      // Atualiza tabela de promoções recentes
+      const recentPromotionsTable = document.getElementById('recent-promotions');
+      if (recentPromotionsTable && stats.recentPromotions && stats.recentPromotions.length > 0) {
+        const tbody = recentPromotionsTable.querySelector('tbody');
+        tbody.innerHTML = '';
         
-        // Inicia verificação periódica do status
-        this.startStatusCheck();
-      } else {
-        qrContainer.innerHTML = '<div class="alert alert-danger">Erro ao gerar QR Code</div>';
+        stats.recentPromotions.forEach(promo => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${promo.name}</td>
+            <td>${new Date(promo.sentAt).toLocaleDateString()}</td>
+            <td>${promo.recipients}</td>
+            <td><span class="badge bg-${promo.status === 'completed' ? 'success' : 'warning'}">${promo.status}</span></td>
+            <td>${promo.openRate}%</td>
+          `;
+          tbody.appendChild(row);
+        });
       }
+      
+      // Atualiza status de conexão
+      const statusContainer = document.getElementById('connection-status');
+      if (statusContainer) {
+        statusContainer.innerHTML = `
+          <div class="d-flex align-items-center">
+            <div class="bg-success rounded-circle me-2" style="width: 12px; height: 12px;"></div>
+            <span class="fw-bold">Conectado via Evolution API</span>
+          </div>
+          <div class="mt-2 small text-muted">
+            Bot configurado e pronto para enviar mensagens promocionais
+          </div>
+        `;
+      }
+      
     } catch (error) {
-      console.error('Erro ao obter QR Code:', error);
-      qrContainer.innerHTML = `<div class="alert alert-danger">Erro: ${error.message}</div>`;
+      console.error('Erro ao carregar estatísticas:', error);
+      this.showToast('Erro ao carregar estatísticas do dashboard', 'danger');
     }
   },
-
-  // Atualiza o QR Code
-  async refreshQRCode() {
-    const qrContainer = document.getElementById('qrcode-container');
-    qrContainer.innerHTML = '<div class="spinner-border text-success" role="status"><span class="visually-hidden">Carregando...</span></div>';
+  
+  // Carrega lista de clientes
+  async loadClients() {
+    const clientsList = document.getElementById('clients-list');
+    if (!clientsList) return;
     
     try {
-      const qrData = await API.whatsapp.getQRCode();
-      
-      if (qrData && qrData.qrcode) {
-        qrContainer.innerHTML = `<img id="qrcode-img" src="${qrData.qrcode}" alt="QR Code WhatsApp">`;
-      } else {
-        qrContainer.innerHTML = '<div class="alert alert-danger">Erro ao gerar QR Code</div>';
+      const response = await fetch('/api/clients');
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
       }
+      
+      const clients = await response.json();
+      
+      if (clients.length === 0) {
+        clientsList.innerHTML = '<tr><td colspan="5" class="text-center">Nenhum cliente cadastrado</td></tr>';
+        return;
+      }
+      
+      clientsList.innerHTML = '';
+      clients.forEach(client => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${client.name || 'Sem nome'}</td>
+          <td>${client.phone}</td>
+          <td>${new Date(client.registrationDate).toLocaleDateString()}</td>
+          <td>${client.tags?.join(', ') || '-'}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary me-1" onclick="editClient('${client._id}')">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteClient('${client._id}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        `;
+        clientsList.appendChild(row);
+      });
+      
     } catch (error) {
-      console.error('Erro ao atualizar QR Code:', error);
-      qrContainer.innerHTML = `<div class="alert alert-danger">Erro: ${error.message}</div>`;
+      console.error('Erro ao carregar clientes:', error);
+      clientsList.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Erro ao carregar clientes: ${error.message}</td></tr>`;
     }
   },
-
-  // Inicia verificação periódica do status da conexão
-  startStatusCheck() {
-    // Verifica a cada 5 segundos
-    const statusCheckInterval = setInterval(async () => {
+  
+  // Carrega mensagens
+  async loadMessages() {
+    const messagesList = document.getElementById('messages-list');
+    if (!messagesList) return;
+    
+    try {
+      const response = await fetch('/api/messages');
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
+      
+      const messages = await response.json();
+      
+      if (messages.length === 0) {
+        messagesList.innerHTML = '<tr><td colspan="5" class="text-center">Nenhuma mensagem registrada</td></tr>';
+        return;
+      }
+      
+      messagesList.innerHTML = '';
+      messages.forEach(msg => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${msg.direction === 'sent' ? 'Enviada' : 'Recebida'}</td>
+          <td>${msg.sender === 'system' ? 'Sistema' : msg.sender}</td>
+          <td>${msg.recipient || '-'}</td>
+          <td>${msg.body.substring(0, 50)}${msg.body.length > 50 ? '...' : ''}</td>
+          <td>${new Date(msg.timestamp).toLocaleString()}</td>
+          <td><span class="badge bg-${this.getStatusColor(msg.status)}">${msg.status}</span></td>
+        `;
+        messagesList.appendChild(row);
+      });
+      
+    } catch (error) {
+      console.error('Erro ao carregar mensagens:', error);
+      messagesList.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Erro ao carregar mensagens: ${error.message}</td></tr>`;
+    }
+  },
+  
+  // Retorna a cor para o status da mensagem
+  getStatusColor(status) {
+    switch (status) {
+      case 'sent': return 'primary';
+      case 'delivered': return 'info';
+      case 'read': return 'success';
+      case 'failed': return 'danger';
+      default: return 'secondary';
+    }
+  },
+  
+  // Inicializa o formulário de promoções
+  initPromotionForm() {
+    const promotionForm = document.getElementById('promotion-form');
+    if (!promotionForm) return;
+    
+    // Manipulador de envio do formulário
+    promotionForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const formData = new FormData(promotionForm);
+      const promotionData = {
+        name: formData.get('name'),
+        message: formData.get('message'),
+        targetAudience: formData.get('target'),
+        mediaUrl: formData.get('media-url') || null,
+        scheduleType: document.querySelector('input[name="schedule-type"]:checked').value,
+        sendDate: formData.get('send-date') || null,
+        sendTime: formData.get('send-time') || null,
+      };
+      
       try {
-        const statusData = await API.whatsapp.getStatus();
+        const response = await fetch('/api/promotions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(promotionData)
+        });
         
-        if (statusData.connected) {
-          // Se conectado, atualiza UI e fecha o modal
-          this.updateWhatsAppStatus(true);
-          clearInterval(statusCheckInterval);
-          
-          // Fecha o modal de QR Code
-          const qrModal = bootstrap.Modal.getInstance(document.getElementById('qrCodeModal'));
-          if (qrModal) qrModal.hide();
-          
-          // Exibe notificação de sucesso
-          this.showToast('Conectado com sucesso ao WhatsApp!', 'success');
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Erro ao salvar promoção');
         }
+        
+        this.showToast('Promoção salva com sucesso!', 'success');
+        promotionForm.reset();
+        
       } catch (error) {
-        console.error('Erro ao verificar status:', error);
+        console.error('Erro ao salvar promoção:', error);
+        this.showToast(`Erro ao salvar promoção: ${error.message}`, 'danger');
       }
-    }, 5000);
+    });
     
-    // Armazena o ID do intervalo para poder cancelá-lo depois
-    this.statusCheckInterval = statusCheckInterval;
-  },
-
-  // Configuração dos manipuladores de formulários
-  setupFormHandlers() {
-    // Formulário de nova promoção
-    const newPromoForm = document.getElementById('new-promo-form');
-    if (newPromoForm) {
-      newPromoForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        this.handleNewPromotion();
-      });
-      
-      // Botão de salvar como rascunho
-      document.getElementById('save-draft-btn')?.addEventListener('click', () => {
-        this.savePromotionAsDraft();
-      });
-      
-      // Checkbox para todos os clientes
-      document.getElementById('all-clients')?.addEventListener('change', (e) => {
-        const targetingOptions = document.getElementById('targeting-options');
-        if (targetingOptions) {
-          if (e.target.checked) {
-            targetingOptions.classList.add('d-none');
-          } else {
-            targetingOptions.classList.remove('d-none');
-          }
-        }
-      });
-      
-      // Tipo de agendamento
-      document.getElementById('schedule-type')?.addEventListener('change', (e) => {
-        const cronGroup = document.getElementById('cron-expression-group');
-        const endDateGroup = document.getElementById('end-date-group');
-        const sendTimeGroup = document.getElementById('send-time-group');
+    // Evento para mostrar/esconder campos de agendamento
+    document.querySelectorAll('input[name="schedule-type"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        const scheduleType = radio.value;
+        const dateTimeGroup = document.getElementById('date-time-group');
         
-        if (e.target.value === 'custom') {
-          cronGroup.classList.remove('d-none');
-          endDateGroup.classList.remove('d-none');
-          sendTimeGroup.classList.add('d-none');
-        } else if (e.target.value === 'once') {
-          cronGroup.classList.add('d-none');
-          endDateGroup.classList.add('d-none');
-          sendTimeGroup.classList.remove('d-none');
+        if (scheduleType === 'scheduled') {
+          dateTimeGroup.classList.remove('d-none');
         } else {
-          cronGroup.classList.add('d-none');
-          endDateGroup.classList.remove('d-none');
-          sendTimeGroup.classList.remove('d-none');
+          dateTimeGroup.classList.add('d-none');
         }
       });
+    });
+  },
+  
+  // Carrega configurações
+  async loadSettings() {
+    const settingsForm = document.getElementById('settings-form');
+    if (!settingsForm) return;
+    
+    try {
+      const response = await fetch('/api/settings');
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
       
-      // Upload de mídia
-      document.getElementById('upload-media-btn')?.addEventListener('click', () => {
-        this.handleMediaUpload();
-      });
+      const settings = await response.json();
       
-      // Remover mídia
-      document.getElementById('remove-media-btn')?.addEventListener('click', () => {
-        this.removeMedia();
-      });
+      // Preenche formulário com configurações atuais
+      for (const [key, value] of Object.entries(settings)) {
+        const input = settingsForm.querySelector(`[name="${key}"]`);
+        if (input) {
+          input.value = value;
+        }
+      }
+      
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+      this.showToast('Erro ao carregar configurações', 'danger');
     }
+    
+    // Manipulador de envio do formulário
+    settingsForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const formData = new FormData(settingsForm);
+      const settingsData = Object.fromEntries(formData.entries());
+      
+      try {
+        const response = await fetch('/api/settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(settingsData)
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Erro ao salvar configurações');
+        }
+        
+        this.showToast('Configurações salvas com sucesso!', 'success');
+        
+      } catch (error) {
+        console.error('Erro ao salvar configurações:', error);
+        this.showToast(`Erro ao salvar configurações: ${error.message}`, 'danger');
+      }
+    });
   },
 
   // Inicializa os gráficos do dashboard
   initCharts() {
     // Gráfico de desempenho de campanhas
-    const campaignCtx = document.getElementById('campaignChart')?.getContext('2d');
+    const campaignCtx = document.getElementById('messagesChart')?.getContext('2d');
     if (campaignCtx) {
       this.campaignChart = new Chart(campaignCtx, {
         type: 'line',
         data: {
-          labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+          labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
           datasets: [{
-            label: 'Taxa de Entrega',
-            data: [95, 93, 97, 94, 96, 98],
+            label: 'Mensagens Enviadas',
+            data: [65, 59, 80, 81, 56, 55, 40],
             borderColor: '#3a86ff',
             backgroundColor: 'rgba(58, 134, 255, 0.1)',
-            tension: 0.3,
-            fill: true
-          }, {
-            label: 'Taxa de Leitura',
-            data: [75, 70, 82, 78, 85, 88],
-            borderColor: '#8338ec',
-            backgroundColor: 'rgba(131, 56, 236, 0.1)',
             tension: 0.3,
             fill: true
           }]
@@ -357,31 +429,25 @@ const UI = {
           },
           scales: {
             y: {
-              beginAtZero: true,
-              max: 100,
-              ticks: {
-                callback: function(value) {
-                  return value + '%';
-                }
-              }
+              beginAtZero: true
             }
           }
         }
       });
     }
     
-    // Gráfico de status das mensagens
-    const messageStatusCtx = document.getElementById('messageStatusChart')?.getContext('2d');
-    if (messageStatusCtx) {
-      this.messageStatusChart = new Chart(messageStatusCtx, {
+    // Gráfico de engajamento
+    const engagementCtx = document.getElementById('engagementChart')?.getContext('2d');
+    if (engagementCtx) {
+      this.engagementChart = new Chart(engagementCtx, {
         type: 'doughnut',
         data: {
-          labels: ['Enviadas', 'Entregues', 'Lidas', 'Falhas'],
+          labels: ['Entregues', 'Lidas', 'Respondidas', 'Não entregues'],
           datasets: [{
-            data: [15, 65, 20, 5],
+            data: [65, 20, 10, 5],
             backgroundColor: [
-              '#3a86ff',
               '#38b000',
+              '#3a86ff',
               '#8338ec',
               '#ff006e'
             ],
