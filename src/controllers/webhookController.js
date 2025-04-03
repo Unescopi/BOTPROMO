@@ -2,154 +2,144 @@
  * Controlador para lidar com webhooks da Evolution API
  */
 const logger = require('../utils/logger');
-const evolutionApi = require('../services/evolutionApi');
 const Message = require('../models/Message');
 const Client = require('../models/Client');
+const evolutionApi = require('../services/evolutionApi'); // Importando o serviço
 
 /**
  * Processa webhooks recebidos da Evolution API
  */
 exports.handleWebhook = async (req, res) => {
   try {
-    const { event, data } = req.body;
+    // Log do corpo completo do webhook recebido
+    logger.info(`Webhook recebido da Evolution API`);
+    logger.debug(`Dados do webhook: ${JSON.stringify(req.body)}`);
     
-    logger.info(`Webhook recebido: ${event}`);
-    logger.debug(`Dados do webhook: ${JSON.stringify(data)}`);
+    // Responde imediatamente com sucesso
+    res.status(200).json({ success: true, message: 'Webhook recebido com sucesso' });
     
-    // Responde imediatamente para não bloquear Evolution API
-    res.status(200).json({ success: true });
+    // Processa os dados do webhook após responder
+    const webhookData = req.body;
     
-    // Processa o evento de acordo com o tipo
-    switch (event) {
-      case 'connection.update':
-        await handleConnectionUpdate(data);
-        break;
-      
-      case 'messages.upsert':
-        await handleNewMessage(data);
-        break;
-      
-      case 'messages.update':
-        await handleMessageStatusUpdate(data);
-        break;
-      
-      case 'chats.set':
-        await handleChatsSync(data);
-        break;
-      
-      case 'contacts.update':
-        await handleContactsUpdate(data);
-        break;
-      
-      default:
-        logger.info(`Evento não tratado: ${event}`);
+    // Processa o evento conforme o caso
+    if (webhookData.event === 'messages.upsert' && webhookData.data.messages) {
+      // Processa as mensagens recebidas
+      for (const message of webhookData.data.messages) {
+        if (!message.key.fromMe) {
+          await processIncomingMessage(message);
+        }
+      }
+    } 
+    else if (webhookData.event === 'messages.update') {
+      // Atualiza o status das mensagens
+      for (const update of webhookData.data) {
+        await updateMessageStatus(update);
+      }
     }
+    else if (webhookData.event === 'connection.update') {
+      // Registra mudanças no status da conexão
+      logger.info(`Status da conexão WhatsApp: ${webhookData.data.connection}`);
+    }
+    
   } catch (error) {
     logger.error(`Erro ao processar webhook: ${error.message}`);
     logger.error(error.stack);
     
-    // Responde com erro, mas não afeta a Evolution API
+    // Se ainda não enviou a resposta, envia um erro
     if (!res.headersSent) {
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erro ao processar webhook'
-      });
+      res.status(500).json({ success: false, message: 'Erro ao processar webhook' });
     }
   }
 };
 
 /**
- * Processa atualizações de status de conexão
+ * Processa uma mensagem recebida
  */
-async function handleConnectionUpdate(data) {
-  logger.info(`Status da conexão: ${data.connection}`);
-  
-  // Atualizar status no banco de dados ou realizar outras ações necessárias
-  // Exemplo: notificar adminsitradores, tentar reconectar, etc.
-}
-
-/**
- * Processa novas mensagens recebidas
- */
-async function handleNewMessage(data) {
-  // Verifica se é mensagem recebida (não enviada por nós)
-  if (data.key && !data.key.fromMe) {
-    try {
-      const sender = data.key.remoteJid;
-      const message = data.message?.conversation || 
-                     data.message?.extendedTextMessage?.text ||
-                     'Mídia recebida';
-      
-      logger.info(`Nova mensagem de ${sender}: ${message}`);
-      
-      // Salva a mensagem no banco de dados
-      const newMessage = new Message({
-        sender,
-        body: message,
-        direction: 'received',
-        status: 'received',
-        timestamp: new Date()
+async function processIncomingMessage(message) {
+  try {
+    // Extrai informações básicas da mensagem
+    const sender = message.key.remoteJid;
+    let messageContent = '';
+    
+    // Extrai o conteúdo da mensagem conforme o tipo
+    if (message.message?.conversation) {
+      messageContent = message.message.conversation;
+    } 
+    else if (message.message?.extendedTextMessage?.text) {
+      messageContent = message.message.extendedTextMessage.text;
+    } 
+    else if (message.message?.imageMessage) {
+      messageContent = message.message.imageMessage.caption || '[Imagem]';
+    }
+    else if (message.message?.videoMessage) {
+      messageContent = message.message.videoMessage.caption || '[Vídeo]';
+    }
+    else if (message.message?.audioMessage) {
+      messageContent = '[Áudio]';
+    }
+    else if (message.message?.documentMessage) {
+      messageContent = '[Documento]';
+    }
+    else {
+      messageContent = '[Mensagem não identificada]';
+    }
+    
+    logger.info(`Mensagem recebida de ${sender}: ${messageContent}`);
+    
+    // Salva a mensagem no banco de dados
+    const newMessage = new Message({
+      sender,
+      body: messageContent,
+      direction: 'received',
+      status: 'received',
+      timestamp: new Date(),
+      rawData: message
+    });
+    
+    await newMessage.save();
+    logger.info(`Mensagem salva no banco de dados: ${newMessage._id}`);
+    
+    // Cria um cliente se ainda não existir
+    const phone = sender.split('@')[0];
+    const clientExists = await Client.findOne({ phone });
+    
+    if (!clientExists) {
+      const newClient = new Client({
+        phone,
+        name: phone, // Nome provisório
+        source: 'whatsapp',
+        registrationDate: new Date()
       });
       
-      await newMessage.save();
-      
-      // Verifica se o remetente existe na base de clientes
-      const clientExists = await Client.exists({ phone: sender.split('@')[0] });
-      
-      if (!clientExists) {
-        // Cria um novo cliente com dados básicos
-        const newClient = new Client({
-          phone: sender.split('@')[0],
-          source: 'whatsapp',
-          registrationDate: new Date()
-        });
-        
-        await newClient.save();
-        logger.info(`Novo cliente criado a partir de mensagem: ${sender}`);
-      }
-      
-      // Aqui você pode implementar respostas automáticas
-      // ou integrar com um sistema de chatbot
-      
-    } catch (error) {
-      logger.error(`Erro ao processar nova mensagem: ${error.message}`);
+      await newClient.save();
+      logger.info(`Novo cliente criado: ${phone}`);
     }
+    
+    // Não respondemos automaticamente - apenas registramos as mensagens
+    
+  } catch (error) {
+    logger.error(`Erro ao processar mensagem: ${error.message}`);
   }
 }
 
 /**
- * Processa atualizações de status de mensagens
+ * Atualiza o status de uma mensagem
  */
-async function handleMessageStatusUpdate(data) {
+async function updateMessageStatus(messageUpdate) {
   try {
-    const { id, status } = data;
+    // Extrai o ID da mensagem e o novo status
+    const messageId = messageUpdate.key.id;
+    const status = messageUpdate.update.status || 'unknown';
+    
+    logger.info(`Atualizando status da mensagem ${messageId} para ${status}`);
     
     // Atualiza o status da mensagem no banco de dados
     await Message.findOneAndUpdate(
-      { 'evolutionApiMessageId': id },
-      { $set: { status } }
+      { evolutionApiMessageId: messageId },
+      { status: status }
     );
     
-    logger.info(`Status da mensagem ${id} atualizado para: ${status}`);
   } catch (error) {
-    logger.error(`Erro ao processar atualização de status: ${error.message}`);
+    logger.error(`Erro ao atualizar status da mensagem: ${error.message}`);
   }
-}
-
-/**
- * Processa sincronização de chats
- */
-async function handleChatsSync(data) {
-  logger.info(`Sincronização de ${data.length} chats`);
-  
-  // Implementar lógica de sincronização se necessário
-}
-
-/**
- * Processa atualizações de contatos
- */
-async function handleContactsUpdate(data) {
-  logger.info(`Atualização de contatos recebida: ${data.length} contatos`);
-  
-  // Implementar sincronização de contatos se necessário
 }
