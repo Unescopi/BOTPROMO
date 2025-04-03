@@ -40,7 +40,31 @@ const SettingsManager = {
     // Botão de adição de nova tag
     const addTagBtn = document.getElementById('add-tag-btn');
     if (addTagBtn) {
-      addTagBtn.addEventListener('click', () => this.addTagField());
+      addTagBtn.addEventListener('click', () => this.showNewTagModal());
+    }
+    
+    // Botão de salvar tag
+    const saveTagBtn = document.getElementById('save-tag-btn');
+    if (saveTagBtn) {
+      saveTagBtn.addEventListener('click', () => this.saveTag());
+    }
+    
+    // Botão de criar backup
+    const createBackupBtn = document.getElementById('create-backup-btn');
+    if (createBackupBtn) {
+      createBackupBtn.addEventListener('click', () => this.createBackup());
+    }
+    
+    // Botão de restaurar backup
+    const restoreBackupBtn = document.getElementById('restore-backup-btn');
+    if (restoreBackupBtn) {
+      restoreBackupBtn.addEventListener('click', () => this.restoreBackup());
+    }
+    
+    // Botão de limpar dados
+    const clearDataBtn = document.getElementById('clear-data-btn');
+    if (clearDataBtn) {
+      clearDataBtn.addEventListener('click', () => this.clearData());
     }
     
     // Botão de backup

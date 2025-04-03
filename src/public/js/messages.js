@@ -19,6 +19,46 @@ const MessagesManager = {
       });
     }
     
+    // Botão de enviar mensagem no modal
+    const sendMessageBtn = document.getElementById('send-message-btn');
+    if (sendMessageBtn) {
+      sendMessageBtn.addEventListener('click', () => {
+        this.sendMessage();
+      });
+    }
+    
+    // Botão de reenviar mensagem
+    const resendMessageBtn = document.getElementById('resend-message-btn');
+    if (resendMessageBtn) {
+      resendMessageBtn.addEventListener('click', () => {
+        this.resendMessage();
+      });
+    }
+    
+    // Botão de upload de mídia
+    const uploadMediaBtn = document.getElementById('upload-message-media-btn');
+    if (uploadMediaBtn) {
+      uploadMediaBtn.addEventListener('click', () => {
+        this.uploadMedia();
+      });
+    }
+    
+    // Botão de remover mídia
+    const removeMediaBtn = document.getElementById('remove-message-media-btn');
+    if (removeMediaBtn) {
+      removeMediaBtn.addEventListener('click', () => {
+        this.removeMedia();
+      });
+    }
+    
+    // Evento para limpar o formulário quando o modal de envio for aberto
+    const newMessageModal = document.getElementById('newMessageModal');
+    if (newMessageModal) {
+      newMessageModal.addEventListener('show.bs.modal', () => {
+        this.resetMessageForm();
+      });
+    }
+    
     // Filtro de pesquisa
     const searchInput = document.getElementById('message-search');
     if (searchInput) {
@@ -344,6 +384,18 @@ const MessagesManager = {
     
     // Caso contrário, use uma implementação simples
     alert(message);
+  },
+  
+  uploadMedia() {
+    // Implementação para upload de mídia
+  },
+  
+  removeMedia() {
+    // Implementação para remover mídia
+  },
+  
+  resetMessageForm() {
+    document.getElementById('new-message-form').reset();
   }
 };
 

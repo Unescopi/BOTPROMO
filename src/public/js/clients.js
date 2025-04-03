@@ -19,6 +19,26 @@ const ClientsManager = {
       });
     }
     
+    // Botão de salvar no modal de cliente
+    const saveClientBtn = document.getElementById('save-client-btn');
+    if (saveClientBtn) {
+      saveClientBtn.addEventListener('click', () => {
+        this.saveClient();
+      });
+    }
+    
+    // Evento para resetar o formulário quando o modal de novo cliente for aberto
+    const clientModal = document.getElementById('clientModal');
+    if (clientModal) {
+      clientModal.addEventListener('show.bs.modal', (event) => {
+        // Se o botão que acionou o modal foi o de novo cliente (não tem data-client-id)
+        const button = event.relatedTarget;
+        if (!button || !button.getAttribute('data-client-id')) {
+          this.resetClientForm();
+        }
+      });
+    }
+    
     // Manipulador para importar clientes
     const importBtn = document.getElementById('import-btn');
     if (importBtn) {
@@ -155,17 +175,28 @@ const ClientsManager = {
     const clientName = document.getElementById('client-name').value;
     const clientPhone = document.getElementById('client-phone').value;
     const clientEmail = document.getElementById('client-email').value;
+    const clientTags = document.getElementById('client-tags').value;
+    const clientNotes = document.getElementById('client-notes').value;
+    const clientStatus = document.getElementById('client-status').value;
     
     if (!clientName || !clientPhone) {
       alert('Nome e telefone são obrigatórios!');
       return;
     }
     
+    // Processar as tags (separadas por vírgulas)
+    const tags = clientTags ? clientTags.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+    
     const clientData = {
       name: clientName,
       phone: clientPhone,
-      email: clientEmail || null
+      email: clientEmail || null,
+      tags: tags,
+      notes: clientNotes || '',
+      status: clientStatus || 'active'
     };
+    
+    console.log('Salvando cliente:', clientData);
     
     const url = clientId ? `/api/clients/${clientId}` : '/api/clients';
     const method = clientId ? 'PUT' : 'POST';
@@ -221,6 +252,9 @@ const ClientsManager = {
         document.getElementById('client-name').value = client.name;
         document.getElementById('client-phone').value = client.phone;
         document.getElementById('client-email').value = client.email || '';
+        document.getElementById('client-tags').value = client.tags.join(', ');
+        document.getElementById('client-notes').value = client.notes || '';
+        document.getElementById('client-status').value = client.status || 'active';
         
         // Abre o modal
         const modal = new bootstrap.Modal(document.getElementById('clientModal'));
@@ -473,6 +507,12 @@ const ClientsManager = {
     
     // Caso contrário, use uma implementação simples
     alert(message);
+  },
+  
+  resetClientForm() {
+    document.getElementById('client-form').reset();
+    document.getElementById('client-id').value = '';
+    document.getElementById('client-modal-title').innerHTML = '<i class="fas fa-user-plus me-2"></i>Novo Cliente';
   }
 };
 

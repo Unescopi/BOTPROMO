@@ -25,6 +25,30 @@ const PromotionsManager = {
       saveDraftBtn.addEventListener('click', () => this.saveAsDraft());
     }
     
+    // Botão de enviar teste
+    const sendTestBtn = document.getElementById('send-test-btn');
+    if (sendTestBtn) {
+      sendTestBtn.addEventListener('click', () => this.sendTestPromotion());
+    }
+    
+    // Botão de editar promoção
+    const editPromoBtn = document.getElementById('edit-promo-btn');
+    if (editPromoBtn) {
+      editPromoBtn.addEventListener('click', () => this.editPromotion());
+    }
+    
+    // Botão de enviar promoção agora
+    const sendPromoNowBtn = document.getElementById('send-promo-now-btn');
+    if (sendPromoNowBtn) {
+      sendPromoNowBtn.addEventListener('click', () => this.sendPromotionNow());
+    }
+    
+    // Botões para abrir o modal de nova promoção
+    const newPromoBtn = document.getElementById('new-promo-btn');
+    if (newPromoBtn) {
+      newPromoBtn.addEventListener('click', () => this.resetPromoForm());
+    }
+    
     // Mudança no tipo de segmentação
     const targetingTypeRadios = document.querySelectorAll('input[name="targeting-type"]');
     if (targetingTypeRadios.length > 0) {
@@ -459,6 +483,29 @@ const PromotionsManager = {
     
     // Caso contrário, use uma implementação simples
     alert(message);
+  },
+  
+  sendTestPromotion() {
+    // Implementação para enviar uma promoção de teste
+    alert('Enviar promoção de teste');
+  },
+  
+  editPromotion() {
+    // Implementação para editar uma promoção
+    alert('Editar promoção');
+  },
+  
+  sendPromotionNow() {
+    // Implementação para enviar uma promoção agora
+    alert('Enviar promoção agora');
+  },
+  
+  resetPromoForm() {
+    // Resetar o formulário de promoção
+    const newPromoForm = document.getElementById('new-promo-form');
+    if (newPromoForm) {
+      newPromoForm.reset();
+    }
   }
 };
 

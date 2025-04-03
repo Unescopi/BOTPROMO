@@ -318,6 +318,7 @@ exports.createClient = async (req, res) => {
       email: req.body.email,
       tags: req.body.tags || [],
       notes: req.body.notes,
+      status: req.body.status || 'active',
       source: 'manual'
     });
     
@@ -389,8 +390,8 @@ exports.updateClient = async (req, res) => {
     // Atualiza campos básicos
     if (req.body.name) client.name = req.body.name;
     if (req.body.email) client.email = req.body.email;
-    if (req.body.tags) client.tags = req.body.tags;
-    if (req.body.notes) client.notes = req.body.notes;
+    if (req.body.tags !== undefined) client.tags = req.body.tags;
+    if (req.body.notes !== undefined) client.notes = req.body.notes;
     if (req.body.status) client.status = req.body.status;
     
     // Atualiza campos específicos
