@@ -97,7 +97,7 @@ class UI {
     if (!pageName) pageName = 'dashboard';
     
     try {
-      const mainContent = document.querySelector('main');
+      const mainContent = document.querySelector('#page-container');
       if (!mainContent) {
         console.error('Container de conteúdo principal não encontrado');
         return;
