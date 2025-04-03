@@ -1,157 +1,135 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - Bot de Promoções</title>
-  <link rel="stylesheet" href="/css/bootstrap.min.css">
-  <link rel="stylesheet" href="/css/custom.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
-</head>
-<body>
-  <div class="container-fluid">
-    <div class="row">
-      <!-- Sidebar já incluída via JavaScript -->
-      <div id="sidebar-container"></div>
-      
-      <!-- Conteúdo principal -->
-      <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-          <h1 class="h2">Dashboard</h1>
-          <div class="btn-toolbar mb-2 mb-md-0">
-            <div class="btn-group me-2">
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh-stats">
-                <i class="bi bi-arrow-clockwise"></i> Atualizar
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Status do Webhook -->
-        <div class="card mb-4">
-          <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Status do Webhook</h5>
-          </div>
-          <div class="card-body" id="webhook-status">
-            <div class="alert alert-info">
-              <i class="bi bi-info-circle me-2"></i>
-              <span>Integração exclusiva via webhook. Configure a URL do webhook na Evolution API para receber eventos.</span>
-            </div>
-            <div class="mt-2">
-              <strong>URL do Webhook:</strong> <code id="webhook-url">https://seu-dominio.com/api/webhook</code>
-              <button class="btn btn-sm btn-outline-primary ms-2" id="copy-webhook-url">
-                <i class="bi bi-clipboard"></i> Copiar
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Cards de estatísticas -->
-        <div class="row row-cols-1 row-cols-md-4 g-4 mb-4">
-          <div class="col">
-            <div class="card h-100 border-primary">
-              <div class="card-body">
-                <h5 class="card-title">Clientes</h5>
-                <p class="card-text fs-1 text-center" id="clients-count">-</p>
-              </div>
-              <div class="card-footer">
-                <small class="text-muted">Total de contatos cadastrados</small>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="card h-100 border-success">
-              <div class="card-body">
-                <h5 class="card-title">Mensagens</h5>
-                <p class="card-text fs-1 text-center" id="messages-count">-</p>
-              </div>
-              <div class="card-footer">
-                <small class="text-muted">Mensagens enviadas esta semana</small>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="card h-100 border-info">
-              <div class="card-body">
-                <h5 class="card-title">Promoções</h5>
-                <p class="card-text fs-1 text-center" id="promotions-count">-</p>
-              </div>
-              <div class="card-footer">
-                <small class="text-muted">Promoções ativas</small>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="card h-100 border-warning">
-              <div class="card-body">
-                <h5 class="card-title">Taxa de Entrega</h5>
-                <p class="card-text fs-1 text-center" id="delivery-rate">-</p>
-              </div>
-              <div class="card-footer">
-                <small class="text-muted">Mensagens entregues com sucesso</small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Gráficos -->
-        <div class="row">
-          <div class="col-md-6">
-            <div class="card mb-4">
-              <div class="card-header">
-                <h5 class="mb-0">Mensagens Enviadas (Últimos 7 dias)</h5>
-              </div>
-              <div class="card-body">
-                <canvas id="messagesChart" height="250"></canvas>
-              </div>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="card mb-4">
-              <div class="card-header">
-                <h5 class="mb-0">Taxa de Engajamento</h5>
-              </div>
-              <div class="card-body">
-                <canvas id="engagementChart" height="250"></canvas>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Promoções Recentes -->
-        <div class="card mb-4">
-          <div class="card-header">
-            <h5 class="mb-0">Promoções Recentes</h5>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover" id="recent-promotions">
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>Data de Envio</th>
-                    <th>Destinatários</th>
-                    <th>Status</th>
-                    <th>Taxa de Abertura</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <!-- Dados preenchidos via JavaScript -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </main>
+<!-- Dashboard (página padrão) -->
+<div class="page active" id="dashboard-page">
+  <h2 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h2>
+  
+  <!-- Status do Webhook -->
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0">Status do Webhook</h5>
+    </div>
+    <div class="card-body" id="webhook-status">
+      <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        <span>Integração exclusiva via webhook. Configure a URL do webhook na Evolution API para receber eventos.</span>
+      </div>
+      <div class="mt-2">
+        <strong>URL do Webhook:</strong> <code id="webhook-url">https://seu-dominio.com/api/webhook</code>
+        <button class="btn btn-sm btn-outline-primary ms-2" id="copy-webhook-url">
+          <i class="fas fa-clipboard"></i> Copiar
+        </button>
+      </div>
     </div>
   </div>
-
-  <!-- Scripts -->
-  <script src="/js/jquery.min.js"></script>
-  <script src="/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/chart.min.js"></script>
-  <script src="/js/ui.js"></script>
-  <script src="/js/api.js"></script>
-  <script src="/js/dashboard.js"></script>
-</body>
-</html>
+  
+  <!-- Cartões de Estatísticas -->
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4">
+    <div class="col">
+      <div class="card h-100 border-primary">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title">Total de Clientes</h5>
+            <i class="fas fa-users fs-1 text-primary"></i>
+          </div>
+          <h3 class="mt-3 mb-0 client-count">0</h3>
+          <p class="card-text text-muted"><small><i class="fas fa-arrow-up text-success me-1"></i><span class="new-clients">0</span> novos este mês</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card h-100 border-success">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title">Promoções Ativas</h5>
+            <i class="fas fa-bullhorn fs-1 text-success"></i>
+          </div>
+          <h3 class="mt-3 mb-0 active-promos">0</h3>
+          <p class="card-text text-muted"><small><i class="fas fa-calendar-alt me-1"></i><span class="scheduled-promos">0</span> agendadas</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card h-100 border-info">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title">Mensagens Enviadas</h5>
+            <i class="fas fa-paper-plane fs-1 text-info"></i>
+          </div>
+          <h3 class="mt-3 mb-0 messages-sent">0</h3>
+          <p class="card-text text-muted"><small><i class="fas fa-check-double text-info me-1"></i>Taxa de entrega: <span class="delivery-rate">0</span>%</small></p>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card h-100 border-warning">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="card-title">Taxa de Leitura</h5>
+            <i class="fas fa-eye fs-1 text-warning"></i>
+          </div>
+          <h3 class="mt-3 mb-0 read-rate">0%</h3>
+          <p class="card-text text-muted"><small><i class="fas fa-reply text-warning me-1"></i><span class="response-count">0</span> respostas recebidas</small></p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Gráficos e Estatísticas -->
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Desempenho de Campanhas</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="campaignChart" width="400" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header bg-white">
+          <h5 class="card-title mb-0">Status das Mensagens</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="messageStatusChart" width="400" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Promoções Recentes e Próximas -->
+  <div class="row mb-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Promoções Recentes</h5>
+          <a href="#" class="btn btn-sm btn-outline-primary" data-page="promotions">Ver Todas</a>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush" id="recent-promos">
+            <div class="list-group-item text-center py-5">
+              <i class="fas fa-info-circle me-2"></i>Nenhuma promoção recente
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Próximos Agendamentos</h5>
+          <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#newPromoModal">
+            <i class="fas fa-plus me-1"></i>Nova Promoção
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush" id="upcoming-promos">
+            <div class="list-group-item text-center py-5">
+              <i class="fas fa-calendar-alt me-2"></i>Nenhum agendamento próximo
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

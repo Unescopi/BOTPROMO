@@ -27,9 +27,11 @@ class UI {
     this.setupPageEvents();
     this.setupNavigation();
     
-    // Determina a página atual baseada na URL
-    const targetPage = this.getTargetPageFromUrl();
-    this.showPage(targetPage);
+    // Determina a página atual baseada na URL ou usa dashboard como padrão
+    const targetPage = this.getTargetPageFromUrl() || 'dashboard';
+    
+    // Carrega a página inicial
+    await this.showPage(targetPage);
     
     // Atualiza informações do webhook
     this.updateWebhookInfo();
