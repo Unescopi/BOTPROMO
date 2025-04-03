@@ -84,7 +84,8 @@ const Auth = {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
+        credentials: 'same-origin'
       });
       
       if (!response.ok) {
@@ -140,7 +141,7 @@ const Auth = {
     // Administradores têm acesso a tudo
     if (role === 'admin') return true;
     
-    // Operadores têm acesso a tudo exceto configurações avançadas
+    // Operadores têm acesso a tudo, exceto páginas de admin
     if (role === 'operator' && requiredRole !== 'admin') return true;
     
     // Visualizadores têm acesso apenas a páginas de visualização
@@ -154,57 +155,76 @@ const Auth = {
    * @param {string} requiredRole Papel necessário para acessar a página (opcional)
    */
   protectPage(requiredRole = null) {
-    // Verificar se o usuário está autenticado
     if (!this.isAuthenticated()) {
-      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      // Redirecionar para o login com a URL atual como parâmetro de redirecionamento
+      const currentPath = encodeURIComponent(window.location.pathname);
+      window.location.href = `/login?redirect=${currentPath}`;
       return;
     }
     
-    // Se um papel específico for necessário, verificar permissões
+    // Se um papel específico for necessário, verificar permissão
     if (requiredRole && !this.hasPermission(requiredRole)) {
-      // Mostrar mensagem de acesso negado
       this.showAccessDenied();
-      return;
     }
   },
-  
+
   /**
    * Mostra uma mensagem de acesso negado e redireciona para a página inicial
    */
   showAccessDenied() {
-    // Criar e mostrar um modal de acesso negado
-    const modalHtml = `
-      <div class="modal fade" id="accessDeniedModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-              <h5 class="modal-title">
-                <i class="fas fa-exclamation-triangle me-2"></i>Acesso Negado
-              </h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-            </div>
-            <div class="modal-body">
-              <p>Você não tem permissão para acessar esta página.</p>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-primary" id="redirectHomeBtn">Ir para Página Inicial</button>
-            </div>
-          </div>
+    // Criar um elemento de mensagem de acesso negado
+    const accessDeniedDiv = document.createElement('div');
+    accessDeniedDiv.className = 'access-denied-overlay';
+    accessDeniedDiv.innerHTML = `
+      <div class="access-denied-content">
+        <div class="access-denied-icon">
+          <i class="fas fa-lock"></i>
         </div>
+        <h2>Acesso Negado</h2>
+        <p>Você não tem permissão para acessar esta página.</p>
+        <p>Entre em contato com o administrador para obter acesso.</p>
+        <button id="access-denied-back" class="btn btn-primary">
+          <i class="fas fa-arrow-left"></i> Voltar para a página inicial
+        </button>
       </div>
     `;
     
-    // Adicionar o modal ao corpo da página
-    const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalHtml;
-    document.body.appendChild(modalContainer);
+    // Adicionar estilos
+    const style = document.createElement('style');
+    style.textContent = `
+      .access-denied-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(255, 255, 255, 0.9);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .access-denied-content {
+        text-align: center;
+        padding: 2rem;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        max-width: 500px;
+      }
+      .access-denied-icon {
+        font-size: 4rem;
+        color: #dc3545;
+        margin-bottom: 1rem;
+      }
+    `;
     
-    // Mostrar o modal
-    const modal = new bootstrap.Modal(document.getElementById('accessDeniedModal'));
-    modal.show();
+    // Adicionar ao DOM
+    document.head.appendChild(style);
+    document.body.appendChild(accessDeniedDiv);
     
-    // Adicionar evento ao botão de redirecionamento
-    document.getElementById('redirectHomeBtn').addEventListener('click', () => {
+    // Adicionar evento ao botão
+    document.getElementById('access-denied-back').addEventListener('click', () => {
       window.location.href = '/';
     });
   },
@@ -213,11 +233,18 @@ const Auth = {
    * Inicializa a verificação de autenticação
    */
   init() {
-    // Verificar se estamos em uma página que não precisa de autenticação
-    const publicPages = ['/login', '/reset-password', '/register'];
-    const isPublicPage = publicPages.some(page => window.location.pathname.includes(page));
+    // Verificar se o usuário está na página de login ou redefinição de senha
+    const isLoginPage = window.location.pathname === '/login' || 
+                        window.location.pathname.includes('reset-password');
     
-    if (!isPublicPage) {
+    // Se o usuário estiver autenticado e estiver na página de login, redirecionar para a página inicial
+    if (this.isAuthenticated() && isLoginPage) {
+      window.location.href = '/';
+      return;
+    }
+    
+    // Se o usuário não estiver na página de login, proteger a página
+    if (!isLoginPage) {
       this.protectPage();
     }
     
@@ -244,6 +271,23 @@ const Auth = {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
       try {
+        // Adicionar cabeçalho de autorização se o usuário estiver autenticado
+        if (this.isAuthenticated() && args[0] && args[1] && !args[1].headers?.Authorization) {
+          const token = this.getToken();
+          if (!args[1].headers) {
+            args[1].headers = {};
+          }
+          args[1].headers = {
+            ...args[1].headers,
+            'Authorization': `Bearer ${token}`
+          };
+        }
+        
+        // Adicionar credentials: 'same-origin' para garantir que os cookies sejam enviados
+        if (args[1] && !args[1].credentials) {
+          args[1].credentials = 'same-origin';
+        }
+        
         const response = await originalFetch(...args);
         
         // Verificar se é uma resposta JSON

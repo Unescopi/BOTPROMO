@@ -6,6 +6,21 @@ const path = require('path');
 const fileUpload = require('express-fileupload');
 const mongoose = require('mongoose');
 const logger = require('./src/utils/logger');
+const config = require('./src/config/config');
+
+// Verificar se estamos no ambiente EasyPanel
+const isEasyPanel = process.env.NODE_ENV === 'production' && 
+                    process.env.BASE_URL && 
+                    process.env.BASE_URL.includes('easypanel.host');
+
+// Carregar configurações específicas do EasyPanel, se disponíveis
+let easyPanelConfig = {};
+try {
+  easyPanelConfig = require('./easypanel.config');
+  logger.info('Configurações do EasyPanel carregadas com sucesso');
+} catch (error) {
+  logger.info('Configurações específicas do EasyPanel não encontradas, usando configurações padrão');
+}
 
 // Importando rotas
 const routes = require('./src/routes');
@@ -17,8 +32,21 @@ const schedulerService = require('./src/services/schedulerService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configurar trust proxy se estiver no EasyPanel
+if (isEasyPanel && easyPanelConfig.proxy && easyPanelConfig.proxy.trustProxy) {
+  app.set('trust proxy', 1);
+  logger.info('Trust proxy configurado para ambiente EasyPanel');
+}
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: isEasyPanel && easyPanelConfig.security && easyPanelConfig.security.cors 
+    ? easyPanelConfig.security.cors.origin 
+    : '*',
+  credentials: isEasyPanel && easyPanelConfig.security && easyPanelConfig.security.cors 
+    ? easyPanelConfig.security.cors.credentials 
+    : true
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(fileUpload({
@@ -51,11 +79,6 @@ mongoose.connect(process.env.MONGODB_URI)
 // Rotas da API
 app.use('/api', routes);
 
-// Removendo rotas duplicadas que já estão incluídas no módulo routes
-// app.use('/api/clients', require('./src/routes/client'));
-// app.use('/api/promotions', require('./src/routes/promotion'));  
-// app.use('/api/messages', require('./src/routes/message'));
-
 // Adiciona uma rota de fallback para lidar com navegação direta para rotas SPA
 app.get('/:page', (req, res) => {
   const allowedPages = ['clients', 'promotions', 'messages', 'settings', 'dashboard'];
@@ -64,6 +87,12 @@ app.get('/:page', (req, res) => {
   if (allowedPages.includes(page)) {
     // Se for uma das páginas da aplicação, carrega o index.html
     res.sendFile(path.join(__dirname, 'src/public/index.html'));
+  } else if (page === 'login') {
+    // Rota específica para login
+    res.sendFile(path.join(__dirname, 'src/public/login.html'));
+  } else if (page === 'reset-password') {
+    // Rota específica para redefinição de senha
+    res.sendFile(path.join(__dirname, 'src/public/reset-password.html'));
   } else {
     // Caso contrário, responde com 404
     res.status(404).send('Página não encontrada');
@@ -75,6 +104,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'src/public/index.html'));
 });
 
+// Estas rotas são redundantes com a lógica acima, mas mantidas para compatibilidade
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'src/public/login.html'));
 });
@@ -86,6 +116,11 @@ app.get('/reset-password', (req, res) => {
 // Inicializando o servidor
 app.listen(PORT, () => {
   logger.info(`Servidor rodando na porta ${PORT}`);
+  logger.info(`Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  
+  if (isEasyPanel) {
+    logger.info(`Servidor configurado para o domínio: ${config.server.domain}`);
+  }
   
   // Bot configurado para operar apenas via webhook
   logger.info('Bot de Promoções inicializado no modo webhook');
