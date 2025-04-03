@@ -18,13 +18,21 @@ const UI = {
       link.addEventListener('click', (e) => {
         e.preventDefault();
         const targetPage = link.getAttribute('data-page');
+        console.log(`Navegando para página: ${targetPage}`);
         this.showPage(targetPage);
       });
     });
+    
+    // Inicializa com a página do dashboard
+    const currentPage = window.location.hash.substring(1) || 'dashboard';
+    console.log(`Página inicial: ${currentPage}`);
+    this.showPage(currentPage);
   },
 
   // Mostrar página específica
   showPage(pageId) {
+    console.log(`Tentando mostrar página: ${pageId}`);
+    
     // Esconde todas as páginas
     document.querySelectorAll('.page').forEach(page => {
       page.classList.remove('active');
@@ -38,16 +46,36 @@ const UI = {
     // Ativa a página solicitada
     const targetPage = document.getElementById(`${pageId}-page`);
     if (targetPage) {
+      console.log(`Página encontrada: ${pageId}-page`);
       targetPage.classList.add('active');
       
       // Ativa o link de navegação correspondente
-      document.querySelector(`[data-page="${pageId}"]`)?.classList.add('active');
+      const navLink = document.querySelector(`[data-page="${pageId}"]`);
+      if (navLink) {
+        navLink.classList.add('active');
+        console.log(`Link de navegação ativado para: ${pageId}`);
+      } else {
+        console.warn(`Link de navegação não encontrado para: ${pageId}`);
+      }
       
       // Carrega o conteúdo da página se ainda não foi carregado
       if (targetPage.getAttribute('data-loaded') !== 'true') {
+        console.log(`Carregando conteúdo para: ${pageId}`);
         this.loadPageContent(pageId);
+      } else {
+        console.log(`Conteúdo já carregado para: ${pageId}`);
+      }
+    } else {
+      console.error(`Página não encontrada: ${pageId}-page`);
+      // Se a página alvo não existir, volta para o dashboard
+      if (pageId !== 'dashboard') {
+        console.log('Redirecionando para dashboard');
+        this.showPage('dashboard');
       }
     }
+    
+    // Atualiza a URL com o hash
+    window.location.hash = pageId;
   },
 
   // Carrega o conteúdo de uma página específica
@@ -59,10 +87,16 @@ const UI = {
     
     try {
       // Carrega o conteúdo da página via AJAX
-      const response = await fetch(`/pages/${pageId}.html`);
-      if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
+      const response = await fetch(`/src/public/pages/${pageId}.html`);
+      if (!response.ok) {
+        // Tenta um caminho alternativo se o primeiro falhar
+        const altResponse = await fetch(`/pages/${pageId}.html`);
+        if (!altResponse.ok) throw new Error(`Erro HTTP: ${altResponse.status}`);
+        var html = await altResponse.text();
+      } else {
+        var html = await response.text();
+      }
       
-      const html = await response.text();
       targetPage.innerHTML = html;
       
       // Marca a página como carregada
@@ -70,6 +104,8 @@ const UI = {
       
       // Inicializa os componentes específicos da página
       this.initPageComponents(pageId);
+      
+      console.log(`Página ${pageId} carregada com sucesso`);
       
     } catch (error) {
       console.error(`Erro ao carregar a página ${pageId}:`, error);
