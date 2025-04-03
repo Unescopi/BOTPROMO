@@ -831,3 +831,102 @@ exports.getStats = async (req, res) => {
     });
   }
 };
+
+// Obter promoções recentes
+exports.getRecentPromotions = async (req, res) => {
+  try {
+    // Define o limite de resultados (padrão: 5)
+    const limit = parseInt(req.query.limit) || 5;
+    
+    // Busca promoções recentes (enviadas nos últimos 30 dias)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentPromotions = await Promotion.find({
+      status: { $in: ['completed', 'active'] },
+      'schedule.startDate': { $gte: thirtyDaysAgo }
+    })
+    .sort({ 'schedule.startDate': -1 })
+    .limit(limit)
+    .select('name description type status schedule metrics');
+    
+    // Formata os resultados para a resposta
+    const formattedPromotions = recentPromotions.map(promo => ({
+      id: promo._id,
+      name: promo.name,
+      description: promo.description,
+      type: promo.type,
+      status: promo.status,
+      sentDate: promo.schedule.startDate,
+      metrics: {
+        sent: promo.metrics?.messagesSent || 0,
+        delivered: promo.metrics?.messagesDelivered || 0,
+        read: promo.metrics?.messagesRead || 0,
+        readRate: promo.metrics?.messagesDelivered > 0 ? 
+          (promo.metrics.messagesRead / promo.metrics.messagesDelivered * 100).toFixed(2) : 0
+      }
+    }));
+    
+    return res.status(200).json({
+      success: true,
+      count: formattedPromotions.length,
+      data: formattedPromotions
+    });
+    
+  } catch (error) {
+    logger.error(`Erro ao obter promoções recentes: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: `Erro ao obter promoções recentes: ${error.message}`
+    });
+  }
+};
+
+// Obter promoções agendadas para o futuro
+exports.getUpcomingPromotions = async (req, res) => {
+  try {
+    // Define o limite de resultados (padrão: 5)
+    const limit = parseInt(req.query.limit) || 5;
+    
+    // Data atual
+    const now = new Date();
+    
+    // Busca promoções agendadas para o futuro
+    const upcomingPromotions = await Promotion.find({
+      status: { $in: ['scheduled', 'draft'] },
+      'schedule.startDate': { $gte: now }
+    })
+    .sort({ 'schedule.startDate': 1 })
+    .limit(limit)
+    .select('name description type status schedule targeting');
+    
+    // Formata os resultados para a resposta
+    const formattedPromotions = upcomingPromotions.map(promo => ({
+      id: promo._id,
+      name: promo.name,
+      description: promo.description,
+      type: promo.type,
+      status: promo.status,
+      scheduledDate: promo.schedule.startDate,
+      recurrence: promo.schedule.recurrence,
+      targeting: {
+        allClients: promo.targeting.allClients,
+        includeTags: promo.targeting.includeTags,
+        excludeTags: promo.targeting.excludeTags
+      }
+    }));
+    
+    return res.status(200).json({
+      success: true,
+      count: formattedPromotions.length,
+      data: formattedPromotions
+    });
+    
+  } catch (error) {
+    logger.error(`Erro ao obter promoções agendadas: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: `Erro ao obter promoções agendadas: ${error.message}`
+    });
+  }
+};

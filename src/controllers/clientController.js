@@ -669,3 +669,106 @@ exports.getStats = async (req, res) => {
     });
   }
 };
+
+// Operações em lote para clientes
+exports.batchOperation = async (req, res) => {
+  try {
+    if (!req.body.operation || !req.body.clientIds || !Array.isArray(req.body.clientIds)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Operação e lista de clientes são obrigatórios' 
+      });
+    }
+    
+    const { operation, clientIds, data } = req.body;
+    let result;
+    
+    switch (operation) {
+      case 'addTag':
+        // Adicionar tag a vários clientes
+        if (!data || !data.tag) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Tag é obrigatória para esta operação' 
+          });
+        }
+        
+        result = await Client.updateMany(
+          { _id: { $in: clientIds } },
+          { $addToSet: { tags: data.tag.trim() } }
+        );
+        
+        return res.status(200).json({
+          success: true,
+          message: `Tag adicionada a ${result.modifiedCount} clientes`,
+          modifiedCount: result.modifiedCount
+        });
+        
+      case 'removeTag':
+        // Remover tag de vários clientes
+        if (!data || !data.tag) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Tag é obrigatória para esta operação' 
+          });
+        }
+        
+        result = await Client.updateMany(
+          { _id: { $in: clientIds } },
+          { $pull: { tags: data.tag.trim() } }
+        );
+        
+        return res.status(200).json({
+          success: true,
+          message: `Tag removida de ${result.modifiedCount} clientes`,
+          modifiedCount: result.modifiedCount
+        });
+        
+      case 'updateStatus':
+        // Atualizar status de vários clientes
+        if (!data || !data.status) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Status é obrigatório para esta operação' 
+          });
+        }
+        
+        result = await Client.updateMany(
+          { _id: { $in: clientIds } },
+          { $set: { status: data.status } }
+        );
+        
+        return res.status(200).json({
+          success: true,
+          message: `Status atualizado para ${result.modifiedCount} clientes`,
+          modifiedCount: result.modifiedCount
+        });
+        
+      case 'delete':
+        // Excluir (soft delete) vários clientes
+        result = await Client.updateMany(
+          { _id: { $in: clientIds } },
+          { $set: { status: 'inactive' } }
+        );
+        
+        return res.status(200).json({
+          success: true,
+          message: `${result.modifiedCount} clientes inativados com sucesso`,
+          modifiedCount: result.modifiedCount
+        });
+        
+      default:
+        return res.status(400).json({ 
+          success: false, 
+          message: `Operação '${operation}' não suportada` 
+        });
+    }
+    
+  } catch (error) {
+    logger.error(`Erro em operação em lote: ${error.message}`);
+    return res.status(500).json({ 
+      success: false, 
+      message: `Erro em operação em lote: ${error.message}` 
+    });
+  }
+};

@@ -434,3 +434,115 @@ exports.getStats = async (req, res) => {
     });
   }
 };
+
+// Reenviar uma mensagem
+exports.resendMessage = async (req, res) => {
+  try {
+    // Busca a mensagem original
+    const message = await Message.findById(req.params.id);
+    
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Mensagem não encontrada'
+      });
+    }
+    
+    // Verifica se a mensagem pode ser reenviada (falhou ou não foi entregue)
+    if (!['failed', 'pending', 'sent'].includes(message.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Apenas mensagens com falha, pendentes ou enviadas podem ser reenviadas'
+      });
+    }
+    
+    // Busca o cliente
+    const client = await Client.findById(message.clientId);
+    
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cliente não encontrado'
+      });
+    }
+    
+    if (client.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Não é possível enviar mensagem para cliente inativo'
+      });
+    }
+    
+    // Reenvia a mensagem
+    const newMessage = await messageService.sendMessage(
+      client,
+      message.content,
+      message.mediaUrls || []
+    );
+    
+    if (!newMessage) {
+      return res.status(500).json({
+        success: false,
+        message: 'Erro ao reenviar mensagem'
+      });
+    }
+    
+    // Atualiza a mensagem original para indicar que foi reenviada
+    message.resent = true;
+    message.resentAt = new Date();
+    message.resentMessageId = newMessage._id;
+    await message.save();
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Mensagem reenviada com sucesso',
+      data: newMessage
+    });
+    
+  } catch (error) {
+    logger.error(`Erro ao reenviar mensagem: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: `Erro ao reenviar mensagem: ${error.message}`
+    });
+  }
+};
+
+// Excluir uma mensagem
+exports.deleteMessage = async (req, res) => {
+  try {
+    // Busca a mensagem
+    const message = await Message.findById(req.params.id);
+    
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: 'Mensagem não encontrada'
+      });
+    }
+    
+    // Verifica se a mensagem pode ser excluída
+    // Mensagens já entregues ou lidas não podem ser excluídas do WhatsApp,
+    // mas podemos excluir do nosso banco de dados
+    
+    // Opção 1: Exclusão definitiva
+    await message.deleteOne();
+    
+    // Opção 2: Soft delete (alternativa)
+    // message.deleted = true;
+    // message.deletedAt = new Date();
+    // await message.save();
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Mensagem excluída com sucesso'
+    });
+    
+  } catch (error) {
+    logger.error(`Erro ao excluir mensagem: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: `Erro ao excluir mensagem: ${error.message}`
+    });
+  }
+};
