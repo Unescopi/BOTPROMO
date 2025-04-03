@@ -15,11 +15,10 @@ module.exports = {
     uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/cafeteria-promo-bot',
   },
   
-  // Configurações da Evolution API
-  evolutionAPI: {
-    baseUrl: process.env.EVOLUTION_API_URL || 'http://localhost:8080',
-    apiKey: process.env.EVOLUTION_API_KEY,
-    instance: process.env.EVOLUTION_INSTANCE || 'cafeteria-instance',
+  // Configurações de Webhook
+  webhook: {
+    enabled: process.env.WEBHOOK_ENABLED === 'true',
+    secret: process.env.WEBHOOK_SECRET || 'webhook-default-secret',
   },
   
   // Configurações JWT
