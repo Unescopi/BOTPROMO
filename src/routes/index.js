@@ -11,8 +11,8 @@ const messageRoutes = require('./message');
 const promotionRoutes = require('./promotion');
 const authRoutes = require('./auth');
 
-// Configurando as rotas
-router.use('/', apiRoutes);
+// Configurando as rotas - adicionando o prefixo 'api' para todas
+router.use('/api', apiRoutes);
 router.use('/clients', clientRoutes);
 router.use('/messages', messageRoutes);
 router.use('/promotions', promotionRoutes);

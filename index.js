@@ -51,6 +51,25 @@ mongoose.connect(process.env.MONGODB_URI)
 // Rotas da API
 app.use('/api', routes);
 
+// Corrigindo a configuração de rotas para assegurar que as rotas de API funcionem corretamente
+app.use('/api/clients', require('./src/routes/client'));
+app.use('/api/promotions', require('./src/routes/promotion'));  
+app.use('/api/messages', require('./src/routes/message'));
+
+// Adiciona uma rota de fallback para lidar com navegação direta para rotas SPA
+app.get('/:page', (req, res) => {
+  const allowedPages = ['clients', 'promotions', 'messages', 'settings', 'dashboard'];
+  const page = req.params.page;
+  
+  if (allowedPages.includes(page)) {
+    // Se for uma das páginas da aplicação, carrega o index.html
+    res.sendFile(path.join(__dirname, 'src/public/index.html'));
+  } else {
+    // Caso contrário, responde com 404
+    res.status(404).send('Página não encontrada');
+  }
+});
+
 // Rotas de páginas
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'src/public/index.html'));

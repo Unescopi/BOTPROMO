@@ -51,8 +51,8 @@ class UI {
         e.preventDefault();
         const targetPage = navLink.getAttribute('data-page');
         if (targetPage) {
-          // Atualiza a URL com o nome da página
-          window.history.pushState({}, '', `/${targetPage}`);
+          // Atualiza a URL com o nome da página, mas não navegamos para ela diretamente
+          window.history.pushState({page: targetPage}, '', `/#${targetPage}`);
           
           // Carrega a página
           this.showPage(targetPage);
@@ -61,8 +61,19 @@ class UI {
     });
 
     // Manipula botão de voltar no navegador
-    window.addEventListener('popstate', () => {
-      const targetPage = this.getTargetPageFromUrl();
+    window.addEventListener('popstate', (event) => {
+      let targetPage = 'dashboard'; // Default
+      
+      if (event.state && event.state.page) {
+        targetPage = event.state.page;
+      } else {
+        // Tenta obter da hash da URL
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+          targetPage = hash;
+        }
+      }
+      
       this.showPage(targetPage);
     });
   }
@@ -87,6 +98,11 @@ class UI {
    * Obtém o nome da página da URL atual
    */
   getTargetPageFromUrl() {
+    // Verifica primeiro o hash na URL (nova implementação)
+    const hash = window.location.hash.substring(1);
+    if (hash) return hash;
+    
+    // Se não tiver hash, tenta o caminho antigo
     const path = window.location.pathname;
     const pageName = path.split('/').filter(Boolean)[0];
     return pageName || 'dashboard';

@@ -92,13 +92,15 @@ const SettingsManager = {
   async loadSettings() {
     try {
       const response = await fetch('/api/settings');
+      if (!response.ok) {
+        throw new Error('Erro ao carregar configurações');
+      }
+      
       const settings = await response.json();
-      
       this.populateSettings(settings);
-      
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
-      this.showToast('Erro ao carregar configurações. Verifique a conexão com o servidor.', 'danger');
+      this.showToast('Erro ao carregar configurações', 'danger');
     }
   },
   

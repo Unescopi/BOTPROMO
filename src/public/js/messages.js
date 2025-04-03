@@ -99,8 +99,25 @@ const MessagesManager = {
         </div>
       `;
       
-      const response = await fetch('/api/messages');
-      const messages = await response.json();
+      // Filtros
+      const searchTerm = document.getElementById('message-search')?.value || '';
+      const startDate = document.getElementById('start-date')?.value || '';
+      const endDate = document.getElementById('end-date')?.value || '';
+      const statusFilter = document.getElementById('status-filter')?.value || '';
+      
+      // Construir URL com parâmetros de filtro
+      let endpoint = '/messages';
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (startDate) params.append('start', startDate);
+      if (endDate) params.append('end', endDate);
+      if (statusFilter) params.append('status', statusFilter);
+      
+      if (params.toString()) {
+        endpoint += `?${params.toString()}`;
+      }
+      
+      const messages = await API.get(endpoint);
       
       if (messages.length === 0) {
         messagesContainer.innerHTML = `
@@ -161,41 +178,67 @@ const MessagesManager = {
   },
   
   sendMessage() {
-    const recipient = document.getElementById('message-recipient').value;
-    const text = document.getElementById('message-text').value;
-    const mediaFile = document.getElementById('message-media').files[0];
-    
-    if (!recipient || !text) {
-      alert('Por favor, informe o destinatário e o texto da mensagem');
+    // Obter o formulário
+    const messageForm = document.getElementById('new-message-form');
+    if (!messageForm) {
+      console.error('Formulário de mensagem não encontrado');
       return;
     }
     
-    // Criar FormData para envio de arquivos
-    const formData = new FormData();
-    formData.append('to', recipient);
-    formData.append('text', text);
-    
-    if (mediaFile) {
-      formData.append('media', mediaFile);
+    // Validar o formulário
+    if (!messageForm.checkValidity()) {
+      messageForm.reportValidity();
+      return;
     }
     
-    fetch('/api/messages', {
-      method: 'POST',
-      body: formData
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao enviar mensagem');
-        }
-        return response.json();
-      })
+    // Coletar dados do formulário
+    const recipientType = document.querySelector('input[name="recipient-type"]:checked').value;
+    const messageText = document.getElementById('message-text').value;
+    
+    if (!messageText) {
+      alert('Por favor, insira o texto da mensagem');
+      return;
+    }
+    
+    const messageData = {
+      text: messageText,
+      recipientType: recipientType === 'single-recipient' ? 'single' : 'multiple'
+    };
+    
+    // Adicionar o destinatário específico se for para um único cliente
+    if (messageData.recipientType === 'single') {
+      const phone = document.getElementById('recipient-phone').value;
+      if (!phone) {
+        alert('Por favor, insira o número de telefone do destinatário');
+        return;
+      }
+      messageData.recipient = phone;
+    } else {
+      // Caso seja para múltiplos clientes, adicionar filtro
+      const tagFilter = document.getElementById('recipient-filter').value;
+      if (tagFilter) {
+        messageData.filter = { tag: tagFilter };
+      }
+    }
+    
+    // Mostrar indicador de carregamento
+    const sendButton = document.getElementById('send-message-btn');
+    if (sendButton) {
+      sendButton.disabled = true;
+      sendButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando...';
+    }
+    
+    console.log('Enviando mensagem:', messageData);
+    
+    // Usar API centralizada em vez de fetch direto
+    API.post('/messages', messageData)
       .then(data => {
-        // Limpar o formulário
-        document.getElementById('new-message-form').reset();
-        
         // Fechar o modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newMessageModal'));
-        modal.hide();
+        const modal = bootstrap.Modal.getInstance(document.getElementById('sendMessageModal'));
+        if (modal) modal.hide();
+        
+        // Limpar formulário
+        messageForm.reset();
         
         // Recarregar a lista de mensagens
         this.loadMessages();
@@ -205,7 +248,14 @@ const MessagesManager = {
       })
       .catch(error => {
         console.error('Erro ao enviar mensagem:', error);
-        this.showToast('Erro ao enviar mensagem', 'danger');
+        this.showToast(`Erro ao enviar mensagem: ${error.message}`, 'danger');
+      })
+      .finally(() => {
+        // Restaurar o botão
+        if (sendButton) {
+          sendButton.disabled = false;
+          sendButton.innerHTML = 'Enviar';
+        }
       });
   },
   

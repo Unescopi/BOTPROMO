@@ -87,7 +87,7 @@ const ClientsManager = {
   },
   
   async loadClients() {
-    const tableBody = document.getElementById('clients-table-body');
+    const tableBody = document.querySelector('.clients-table tbody');
     if (!tableBody) return;
     
     try {
@@ -102,8 +102,24 @@ const ClientsManager = {
         </tr>
       `;
       
-      const response = await fetch('/api/clients');
-      const clients = await response.json();
+      // Obter filtros
+      const searchTerm = document.getElementById('client-search')?.value || '';
+      const tagFilter = document.getElementById('tag-filter')?.value || '';
+      const statusFilter = document.getElementById('status-filter')?.value || '';
+      
+      // Construir endpoint com parâmetros de filtro
+      let endpoint = '/clients';
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (tagFilter) params.append('tag', tagFilter);
+      if (statusFilter) params.append('status', statusFilter);
+      
+      if (params.toString()) {
+        endpoint += `?${params.toString()}`;
+      }
+      
+      // Usar API centralizada
+      const clients = await API.get(endpoint);
       
       if (clients.length === 0) {
         tableBody.innerHTML = `
@@ -119,44 +135,32 @@ const ClientsManager = {
       // Renderizar a lista de clientes
       tableBody.innerHTML = clients.map(client => `
         <tr>
-          <td>
-            <div class="form-check">
-              <input class="form-check-input client-checkbox" type="checkbox" data-id="${client._id}">
-              <label class="form-check-label"></label>
-            </div>
-          </td>
           <td>${client.name}</td>
           <td>${client.phone}</td>
           <td>${client.email || '-'}</td>
           <td>
-            ${client.tags && client.tags.length > 0 ? 
-              client.tags.map(tag => `<span class="badge bg-primary me-1">${tag}</span>`).join('') : 
-              '-'
+            ${client.tags && client.tags.length > 0 
+              ? client.tags.map(tag => `<span class="badge bg-secondary me-1">${tag}</span>`).join('')
+              : '-'
             }
           </td>
-          <td>
-            <span class="badge ${this.getStatusBadgeClass(client.status)}">${this.getStatusLabel(client.status)}</span>
-          </td>
           <td>${client.lastVisit ? this.formatDate(client.lastVisit) : '-'}</td>
+          <td>${client.visits || 0}</td>
           <td>
-            <button class="btn btn-sm btn-outline-primary me-1" onclick="ClientsManager.editClient('${client._id}')">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-danger" onclick="ClientsManager.deleteClient('${client._id}')">
-              <i class="fas fa-trash"></i>
-            </button>
+            <span class="badge ${client.status === 'active' ? 'bg-success' : 'bg-secondary'}">${client.status || 'active'}</span>
+          </td>
+          <td>
+            <div class="btn-group" role="group">
+              <button class="btn btn-sm btn-outline-primary" onclick="ClientsManager.editClient('${client._id}')">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick="ClientsManager.deleteClient('${client._id}')">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
           </td>
         </tr>
       `).join('');
-      
-      // Atualize os contadores
-      document.getElementById('total-count').textContent = clients.length;
-      
-      // Adicionar event listeners para as checkboxes
-      const checkboxes = document.querySelectorAll('.client-checkbox');
-      checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', () => this.updateSelectedCount());
-      });
       
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
@@ -198,36 +202,39 @@ const ClientsManager = {
     
     console.log('Salvando cliente:', clientData);
     
-    const url = clientId ? `/api/clients/${clientId}` : '/api/clients';
-    const method = clientId ? 'PUT' : 'POST';
+    const endpoint = clientId ? `/clients/${clientId}` : '/clients';
+    const method = clientId ? 'put' : 'post';
     
-    fetch(url, {
-      method: method,
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(clientData)
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao salvar cliente');
-        }
-        return response.json();
-      })
+    // Mostrar indicador de carregamento
+    const saveButton = document.getElementById('save-client-btn');
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
+    }
+    
+    // Usar o módulo API centralizado em vez de fetch direto
+    API[method](endpoint, clientData)
       .then(data => {
         // Fechar o modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('clientModal'));
-        modal.hide();
+        const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
+        if (modal) modal.hide();
         
         // Recarregar a lista de clientes
         this.loadClients();
         
         // Mostrar mensagem de sucesso
-        this.showToast(`Cliente ${clientId ? 'atualizado' : 'cadastrado'} com sucesso`, 'success');
+        this.showToast('Cliente salvo com sucesso!', 'success');
       })
       .catch(error => {
         console.error('Erro ao salvar cliente:', error);
-        this.showToast('Erro ao salvar cliente', 'danger');
+        this.showToast(`Erro ao salvar cliente: ${error.message}`, 'danger');
+      })
+      .finally(() => {
+        // Restaurar o botão
+        if (saveButton) {
+          saveButton.disabled = false;
+          saveButton.innerHTML = 'Salvar';
+        }
       });
   },
   

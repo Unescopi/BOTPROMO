@@ -56,12 +56,30 @@ const API = {
   async delete(endpoint) {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       return await response.json();
     } catch (error) {
       console.error(`Erro na requisição DELETE para ${endpoint}:`, error);
+      throw error;
+    }
+  },
+
+  // Upload de arquivos com FormData
+  async upload(endpoint, formData) {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'POST',
+        body: formData
+      });
+      if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
+      return await response.json();
+    } catch (error) {
+      console.error(`Erro no upload para ${endpoint}:`, error);
       throw error;
     }
   },

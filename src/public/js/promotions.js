@@ -65,153 +65,143 @@ const PromotionsManager = {
   },
   
   async loadPromotions() {
-    const promotionsTable = document.querySelector('.promotions-table tbody');
-    if (!promotionsTable) return;
+    const promotionsContainer = document.getElementById('promotions-list');
+    if (!promotionsContainer) return;
+    
+    // Mostrar o indicador de carregamento
+    promotionsContainer.innerHTML = `
+      <div class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Carregando...</span>
+        </div>
+      </div>
+    `;
+    
+    // Obtém os parâmetros de filtro, se houver
+    const statusFilter = document.getElementById('status-filter')?.value || '';
+    
+    // Constrói o endpoint com os parâmetros
+    let endpoint = '/promotions';
+    if (statusFilter) {
+      endpoint += `?status=${statusFilter}`;
+    }
     
     try {
-      // Mostrar o indicador de carregamento
-      promotionsTable.innerHTML = `
-        <tr>
-          <td colspan="6" class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Carregando...</span>
-            </div>
-          </td>
-        </tr>
-      `;
-      
-      const response = await fetch('/api/promotions');
-      const promotions = await response.json();
+      // Usar API centralizada
+      const promotions = await API.get(endpoint);
       
       if (promotions.length === 0) {
-        promotionsTable.innerHTML = `
-          <tr>
-            <td colspan="6" class="text-center py-4">
-              <i class="fas fa-info-circle me-2"></i>Nenhuma promoção encontrada
-            </td>
-          </tr>
+        promotionsContainer.innerHTML = `
+          <div class="text-center py-4">
+            <i class="fas fa-info-circle me-2"></i>Nenhuma promoção encontrada
+          </div>
         `;
         return;
       }
       
       // Renderizar a lista de promoções
-      promotionsTable.innerHTML = promotions.map(promotion => `
-        <tr>
-          <td>${promotion.name}</td>
-          <td>${this.formatDate(promotion.createdAt)}</td>
-          <td>
-            <span class="badge ${this.getStatusBadgeClass(promotion.status)}">${this.getStatusLabel(promotion.status)}</span>
-          </td>
-          <td>${promotion.scheduledFor ? this.formatDateTime(promotion.scheduledFor) : '-'}</td>
-          <td>${promotion.sentCount || 0}</td>
-          <td>
+      promotionsContainer.innerHTML = promotions.map(promotion => `
+        <div class="card mb-3">
+          <div class="card-body">
+            <h5 class="card-title">${promotion.name}</h5>
+            <h6 class="card-subtitle mb-2 text-muted">
+              <span class="badge ${this.getStatusBadgeClass(promotion.status)}">${this.getStatusLabel(promotion.status)}</span>
+            </h6>
+            <p class="card-text">
+              <small class="text-muted">Criado em: ${this.formatDate(promotion.createdAt)}</small><br>
+              <small class="text-muted">Agendado para: ${promotion.scheduledFor ? this.formatDateTime(promotion.scheduledFor) : '-'}</small><br>
+              <small class="text-muted">Envios: ${promotion.sentCount || 0}</small>
+            </p>
             <div class="btn-group" role="group">
               <button class="btn btn-sm btn-outline-primary" onclick="PromotionsManager.viewPromotion('${promotion._id}')">
-                <i class="fas fa-eye"></i>
+                <i class="fas fa-eye"></i> Visualizar
               </button>
               ${promotion.status === 'draft' || promotion.status === 'scheduled' ? `
                 <button class="btn btn-sm btn-outline-secondary" onclick="PromotionsManager.editPromotion('${promotion._id}')">
-                  <i class="fas fa-edit"></i>
+                  <i class="fas fa-edit"></i> Editar
                 </button>
               ` : ''}
               ${promotion.status === 'scheduled' ? `
                 <button class="btn btn-sm btn-outline-warning" onclick="PromotionsManager.cancelPromotion('${promotion._id}')">
-                  <i class="fas fa-ban"></i>
+                  <i class="fas fa-ban"></i> Cancelar
                 </button>
               ` : ''}
               <button class="btn btn-sm btn-outline-danger" onclick="PromotionsManager.deletePromotion('${promotion._id}')">
-                <i class="fas fa-trash"></i>
+                <i class="fas fa-trash"></i> Excluir
               </button>
             </div>
-          </td>
-        </tr>
+          </div>
+        </div>
       `).join('');
       
     } catch (error) {
       console.error('Erro ao carregar promoções:', error);
-      promotionsTable.innerHTML = `
-        <tr>
-          <td colspan="6" class="text-center text-danger py-4">
-            <i class="fas fa-exclamation-circle me-2"></i>Erro ao carregar promoções
-          </td>
-        </tr>
+      promotionsContainer.innerHTML = `
+        <div class="text-center text-danger py-4">
+          <i class="fas fa-exclamation-circle me-2"></i>Erro ao carregar promoções
+        </div>
       `;
     }
   },
   
   savePromotion() {
-    // Obter dados do formulário
-    const promoName = document.getElementById('promo-name').value;
-    const promoDescription = document.getElementById('promo-description').value;
-    const promoType = document.getElementById('promo-type').value;
-    const messageText = document.getElementById('message-text').value;
+    const promoForm = document.getElementById('new-promo-form');
+    if (!promoForm) return;
     
-    // Validação básica
-    if (!promoName || !promoDescription || !messageText) {
-      alert('Por favor, preencha todos os campos obrigatórios');
+    // Validar o formulário
+    if (!promoForm.checkValidity()) {
+      promoForm.reportValidity();
       return;
     }
     
-    // Obter dados de segmentação
-    const targetingType = document.querySelector('input[name="targeting-type"]:checked').value;
-    
-    // Dados de agendamento
-    const scheduleType = document.getElementById('schedule-type').value;
-    const startDate = document.getElementById('start-date').value;
-    const sendTime = document.getElementById('send-time').value;
-    
-    if (!startDate) {
-      alert('Por favor, selecione uma data de início');
-      return;
-    }
-    
-    // Montar objeto de promoção
-    const promotionData = {
-      name: promoName,
-      description: promoDescription,
-      type: promoType,
-      message: messageText,
+    // Coletar dados do formulário
+    const promoData = {
+      name: document.getElementById('promo-name').value,
+      message: document.getElementById('message-text').value,
+      type: document.getElementById('promo-type').value,
       targeting: {
-        type: targetingType
+        type: document.querySelector('input[name="targeting-type"]:checked').value
       },
       schedule: {
-        type: scheduleType,
-        startDate: startDate,
-        sendTime: sendTime || '12:00'
+        type: document.getElementById('schedule-type').value,
+        startDate: document.getElementById('start-date').value,
+        sendTime: document.getElementById('send-time').value || '12:00'
       },
       status: 'scheduled'
     };
     
     // Se a segmentação for específica, adicionar configurações de segmentação
-    if (targetingType === 'specific') {
+    if (promoData.targeting.type === 'specific') {
       const includeTags = Array.from(document.getElementById('include-tags').selectedOptions).map(option => option.value);
       const excludeTags = Array.from(document.getElementById('exclude-tags').selectedOptions).map(option => option.value);
       const frequencyMin = document.getElementById('frequency-min').value;
       const frequencyMax = document.getElementById('frequency-max').value;
       const lastVisitDays = document.getElementById('last-visit-days').value;
       
-      promotionData.targeting.includeTags = includeTags;
-      promotionData.targeting.excludeTags = excludeTags;
+      promoData.targeting.includeTags = includeTags;
+      promoData.targeting.excludeTags = excludeTags;
       
-      if (frequencyMin) promotionData.targeting.frequencyMin = parseInt(frequencyMin);
-      if (frequencyMax) promotionData.targeting.frequencyMax = parseInt(frequencyMax);
-      if (lastVisitDays) promotionData.targeting.lastVisitDays = parseInt(lastVisitDays);
+      if (frequencyMin) promoData.targeting.frequencyMin = parseInt(frequencyMin);
+      if (frequencyMax) promoData.targeting.frequencyMax = parseInt(frequencyMax);
+      if (lastVisitDays) promoData.targeting.lastVisitDays = parseInt(lastVisitDays);
     }
     
     // Se o agendamento for recorrente, adicionar configurações adicionais
-    if (scheduleType !== 'once') {
+    if (promoData.schedule.type !== 'once') {
       const endDate = document.getElementById('end-date').value;
-      if (endDate) promotionData.schedule.endDate = endDate;
+      if (endDate) promoData.schedule.endDate = endDate;
       
-      if (scheduleType === 'custom') {
+      if (promoData.schedule.type === 'custom') {
         const cronExpression = document.getElementById('cron-expression').value;
         if (!cronExpression) {
           alert('Por favor, insira uma expressão cron para o agendamento personalizado');
           return;
         }
-        promotionData.schedule.cronExpression = cronExpression;
+        promoData.schedule.cronExpression = cronExpression;
       }
     }
+    
+    console.log('Salvando promoção:', promoData);
     
     // Enviar para a API
     fetch('/api/promotions', {
@@ -219,7 +209,7 @@ const PromotionsManager = {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(promotionData)
+      body: JSON.stringify(promoData)
     })
       .then(response => {
         if (!response.ok) {
@@ -230,13 +220,13 @@ const PromotionsManager = {
       .then(data => {
         // Fechar o modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('newPromoModal'));
-        modal.hide();
+        if (modal) modal.hide();
         
         // Recarregar a lista de promoções
         this.loadPromotions();
         
         // Mostrar mensagem de sucesso
-        this.showToast('Promoção agendada com sucesso', 'success');
+        this.showToast('Promoção salva com sucesso', 'success');
       })
       .catch(error => {
         console.error('Erro ao salvar promoção:', error);
@@ -401,29 +391,19 @@ const PromotionsManager = {
       });
   },
   
-  deletePromotion(promoId) {
-    if (!confirm('Tem certeza que deseja excluir esta promoção?')) return;
+  async deletePromotion(id) {
+    if (!confirm('Tem certeza que deseja excluir esta promoção?')) {
+      return;
+    }
     
-    fetch(`/api/promotions/${promoId}`, {
-      method: 'DELETE'
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao excluir promoção');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Recarregar a lista de promoções
-        this.loadPromotions();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Promoção excluída com sucesso', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao excluir promoção:', error);
-        this.showToast('Erro ao excluir promoção', 'danger');
-      });
+    try {
+      await API.delete(`/promotions/${id}`);
+      this.showToast('Promoção excluída com sucesso', 'success');
+      this.loadPromotions();
+    } catch (error) {
+      console.error('Erro ao excluir promoção:', error);
+      this.showToast('Erro ao excluir promoção', 'danger');
+    }
   },
   
   getStatusBadgeClass(status) {
