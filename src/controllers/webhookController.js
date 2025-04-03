@@ -4,7 +4,6 @@
 const logger = require('../utils/logger');
 const Message = require('../models/Message');
 const Client = require('../models/Client');
-const evolutionApi = require('../services/evolutionApi'); // Importando o serviço
 
 /**
  * Processa webhooks recebidos da Evolution API
@@ -93,7 +92,8 @@ async function processIncomingMessage(message) {
       direction: 'received',
       status: 'received',
       timestamp: new Date(),
-      rawData: message
+      rawData: message,
+      waMessageId: message.key.id
     });
     
     await newMessage.save();
@@ -135,7 +135,7 @@ async function updateMessageStatus(messageUpdate) {
     
     // Atualiza o status da mensagem no banco de dados
     await Message.findOneAndUpdate(
-      { evolutionApiMessageId: messageId },
+      { waMessageId: messageId },
       { status: status }
     );
     

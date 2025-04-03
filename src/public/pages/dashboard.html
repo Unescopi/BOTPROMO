@@ -27,17 +27,21 @@
           </div>
         </div>
         
-        <!-- Status da API -->
+        <!-- Status do Webhook -->
         <div class="card mb-4">
           <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Status da Conexão</h5>
+            <h5 class="mb-0">Status do Webhook</h5>
           </div>
-          <div class="card-body" id="connection-status">
-            <div class="d-flex align-items-center">
-              <div class="spinner-border text-primary me-3" role="status" id="status-loading">
-                <span class="visually-hidden">Carregando...</span>
-              </div>
-              <span id="status-text">Verificando conexão com Evolution API...</span>
+          <div class="card-body" id="webhook-status">
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              <span>Integração exclusiva via webhook. Configure a URL do webhook na Evolution API para receber eventos.</span>
+            </div>
+            <div class="mt-2">
+              <strong>URL do Webhook:</strong> <code id="webhook-url">https://seu-dominio.com/api/webhook</code>
+              <button class="btn btn-sm btn-outline-primary ms-2" id="copy-webhook-url">
+                <i class="bi bi-clipboard"></i> Copiar
+              </button>
             </div>
           </div>
         </div>
