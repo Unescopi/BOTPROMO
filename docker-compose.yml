@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/cafeteria-bot
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=sua-chave-api
+      - EVOLUTION_INSTANCE=cafeteria-bot
+      - JWT_SECRET=secret-jwt-cafeteria-bot-2025
+      - JWT_EXPIRATION=7d
+      - MAX_FILE_SIZE=5242880
+    depends_on:
+      - mongo
+    restart: always
+
+  mongo:
+    image: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+
+volumes:
+  mongo-data:

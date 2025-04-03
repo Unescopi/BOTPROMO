@@ -1,0 +1,467 @@
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-comment-dots me-2"></i>Histórico de Mensagens</h2>
+    <div>
+      <button class="btn btn-outline-primary me-2" id="refresh-messages-btn">
+        <i class="fas fa-sync-alt me-1"></i>Atualizar
+      </button>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#sendMessageModal">
+        <i class="fas fa-paper-plane me-1"></i>Nova Mensagem
+      </button>
+    </div>
+  </div>
+
+  <!-- Filtros e Pesquisa -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" class="form-control" id="message-search" placeholder="Buscar mensagens...">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <select class="form-select" id="message-status-filter">
+            <option value="">Todos os Status</option>
+            <option value="sent">Enviadas</option>
+            <option value="delivered">Entregues</option>
+            <option value="read">Lidas</option>
+            <option value="failed">Falhas</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+            <input type="date" class="form-control" id="message-date-filter">
+          </div>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-secondary w-100" id="reset-message-filters">
+            <i class="fas fa-undo me-1"></i>Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela de Mensagens -->
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Cliente</th>
+              <th>Promoção</th>
+              <th>Conteúdo</th>
+              <th>Data/Hora</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="messages-table-body">
+            <!-- Carregado dinamicamente -->
+            <tr>
+              <td colspan="7" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Carregando...</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer d-flex justify-content-between align-items-center">
+      <div>
+        <span id="message-count">0</span> mensagens encontradas
+      </div>
+      <nav aria-label="Paginação de mensagens">
+        <ul class="pagination mb-0" id="messages-pagination">
+          <li class="page-item disabled">
+            <a class="page-link" href="#" aria-label="Anterior">
+              <span aria-hidden="true">&laquo;</span>
+            </a>
+          </li>
+          <li class="page-item active"><a class="page-link" href="#">1</a></li>
+          <li class="page-item"><a class="page-link" href="#">2</a></li>
+          <li class="page-item"><a class="page-link" href="#">3</a></li>
+          <li class="page-item">
+            <a class="page-link" href="#" aria-label="Próximo">
+              <span aria-hidden="true">&raquo;</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Detalhes da Mensagem -->
+<div class="modal fade" id="messageDetailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-comment-dots me-2"></i>Detalhes da Mensagem
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <h6>ID da Mensagem</h6>
+          <p class="text-muted" id="message-detail-id">MSG123456</p>
+        </div>
+        <div class="mb-3">
+          <h6>Cliente</h6>
+          <p id="message-detail-client">Nome do Cliente (5511999999999)</p>
+        </div>
+        <div class="mb-3">
+          <h6>Promoção</h6>
+          <p id="message-detail-promotion">Nome da Promoção</p>
+        </div>
+        <div class="mb-3">
+          <h6>Conteúdo</h6>
+          <div class="card bg-light">
+            <div class="card-body" id="message-detail-content">
+              Conteúdo da mensagem...
+            </div>
+          </div>
+        </div>
+        <div class="mb-3" id="message-detail-media-container">
+          <h6>Mídia</h6>
+          <img src="" alt="Mídia da mensagem" id="message-detail-media" class="img-fluid rounded">
+        </div>
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <h6>Data/Hora de Envio</h6>
+            <p class="text-muted" id="message-detail-date">01/01/2025 10:00</p>
+          </div>
+          <div class="col-md-6">
+            <h6>Status</h6>
+            <span class="badge bg-success" id="message-detail-status">Entregue</span>
+          </div>
+        </div>
+        <div class="mb-3" id="message-detail-error-container">
+          <h6 class="text-danger">Erro</h6>
+          <p class="text-danger" id="message-detail-error">Mensagem de erro...</p>
+        </div>
+        <div class="mb-3">
+          <h6>Histórico de Status</h6>
+          <ul class="list-group" id="message-detail-history">
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>Enviada</span>
+              <small class="text-muted">01/01/2025 10:00</small>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>Entregue</span>
+              <small class="text-muted">01/01/2025 10:01</small>
+            </li>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <span>Lida</span>
+              <small class="text-muted">01/01/2025 10:05</small>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn btn-primary" id="resend-message-btn">
+          <i class="fas fa-paper-plane me-1"></i>Reenviar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Envio de Mensagem -->
+<div class="modal fade" id="sendMessageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-paper-plane me-2"></i>Enviar Mensagem
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="send-message-form">
+          <div class="mb-3">
+            <label class="form-label">Destinatários</label>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="radio" name="recipient-type" id="single-recipient" checked>
+              <label class="form-check-label" for="single-recipient">
+                Cliente Único
+              </label>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="radio" name="recipient-type" id="multiple-recipients">
+              <label class="form-check-label" for="multiple-recipients">
+                Múltiplos Clientes
+              </label>
+            </div>
+          </div>
+          
+          <div id="single-recipient-container">
+            <div class="mb-3">
+              <label for="recipient-phone" class="form-label">Número do Telefone*</label>
+              <input type="text" class="form-control" id="recipient-phone" required>
+              <div class="form-text">Formato internacional: 5511999999999</div>
+            </div>
+          </div>
+          
+          <div id="multiple-recipients-container" class="d-none">
+            <div class="mb-3">
+              <label for="recipient-filter" class="form-label">Filtrar por Tag</label>
+              <select class="form-select" id="recipient-filter">
+                <option value="">Todos os Clientes</option>
+                <!-- Opções carregadas dinamicamente -->
+              </select>
+            </div>
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle me-2"></i>
+              <span id="recipient-count">0</span> clientes serão alcançados com este filtro
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="message-text" class="form-label">Mensagem*</label>
+            <textarea class="form-control" id="message-text" rows="4" required></textarea>
+            <div class="form-text">
+              Use {{nome}} para inserir o primeiro nome do cliente e {{nome_completo}} para o nome completo.
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Mídia (opcional)</label>
+            <div class="input-group mb-3">
+              <input type="file" class="form-control" id="message-media">
+              <button class="btn btn-outline-primary" type="button" id="upload-message-media-btn">
+                <i class="fas fa-upload me-1"></i>Upload
+              </button>
+            </div>
+            <div id="message-media-preview" class="d-none border rounded p-3 mb-3">
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                  <img src="" alt="Preview" class="img-thumbnail me-3" style="max-width: 100px; max-height: 100px;">
+                  <div>
+                    <h6 class="media-name mb-1"></h6>
+                    <small class="text-muted media-info"></small>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="remove-message-media-btn">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="send-message-btn">
+          <i class="fas fa-paper-plane me-1"></i>Enviar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Script específico para a página de mensagens
+  document.addEventListener('DOMContentLoaded', function() {
+    // Inicializa os componentes da página de mensagens
+    initMessagesPage();
+  });
+
+  function initMessagesPage() {
+    // Carrega a lista de mensagens
+    loadMessages();
+    
+    // Configura os manipuladores de eventos
+    setupMessageEventHandlers();
+  }
+
+  // Função para carregar a lista de mensagens
+  async function loadMessages() {
+    try {
+      const messages = await API.messages.getAll();
+      renderMessagesTable(messages);
+    } catch (error) {
+      console.error('Erro ao carregar mensagens:', error);
+      UI.showToast('Erro ao carregar o histórico de mensagens', 'danger');
+    }
+  }
+
+  // Função para renderizar a tabela de mensagens
+  function renderMessagesTable(messages) {
+    const tableBody = document.getElementById('messages-table-body');
+    
+    if (!messages || messages.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="7" class="text-center py-4">
+            <i class="fas fa-info-circle me-2"></i>Nenhuma mensagem encontrada
+          </td>
+        </tr>
+      `;
+      document.getElementById('message-count').textContent = '0';
+      return;
+    }
+    
+    tableBody.innerHTML = messages.map(message => `
+      <tr>
+        <td><small class="text-muted">${message._id.substring(0, 8)}...</small></td>
+        <td>${message.client.name || message.phone}</td>
+        <td>${message.promotion ? message.promotion.name : '<span class="text-muted">Mensagem Direta</span>'}</td>
+        <td>
+          <div class="text-truncate" style="max-width: 200px;">${message.content}</div>
+          ${message.mediaUrl ? '<i class="fas fa-paperclip ms-1 text-muted"></i>' : ''}
+        </td>
+        <td><small>${formatDateTime(message.createdAt)}</small></td>
+        <td>
+          <span class="badge status-badge status-${message.status}">${getMessageStatusLabel(message.status)}</span>
+        </td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary view-message" data-id="${message._id}">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button class="btn btn-outline-secondary resend-message" data-id="${message._id}" ${message.status === 'failed' ? '' : 'disabled'}>
+              <i class="fas fa-redo-alt"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+    
+    // Atualiza o contador
+    document.getElementById('message-count').textContent = messages.length;
+    
+    // Adiciona manipuladores de eventos para os botões
+    addMessageButtonHandlers();
+  }
+
+  // Função para adicionar manipuladores de eventos aos botões da tabela
+  function addMessageButtonHandlers() {
+    // Botões de visualização
+    document.querySelectorAll('.view-message').forEach(btn => {
+      btn.addEventListener('click', () => viewMessageDetails(btn.getAttribute('data-id')));
+    });
+    
+    // Botões de reenvio
+    document.querySelectorAll('.resend-message').forEach(btn => {
+      btn.addEventListener('click', () => resendMessage(btn.getAttribute('data-id')));
+    });
+  }
+
+  // Função para configurar os manipuladores de eventos
+  function setupMessageEventHandlers() {
+    // Botão de atualizar
+    document.getElementById('refresh-messages-btn')?.addEventListener('click', loadMessages);
+    
+    // Filtros
+    document.getElementById('message-search')?.addEventListener('input', applyMessageFilters);
+    document.getElementById('message-status-filter')?.addEventListener('change', applyMessageFilters);
+    document.getElementById('message-date-filter')?.addEventListener('change', applyMessageFilters);
+    document.getElementById('reset-message-filters')?.addEventListener('click', resetMessageFilters);
+    
+    // Tipo de destinatário
+    document.getElementById('single-recipient')?.addEventListener('change', toggleRecipientType);
+    document.getElementById('multiple-recipients')?.addEventListener('change', toggleRecipientType);
+    
+    // Upload de mídia
+    document.getElementById('upload-message-media-btn')?.addEventListener('click', handleMessageMediaUpload);
+    document.getElementById('remove-message-media-btn')?.addEventListener('click', removeMessageMedia);
+    
+    // Botão de enviar mensagem
+    document.getElementById('send-message-btn')?.addEventListener('click', sendMessage);
+    
+    // Botão de reenviar mensagem no modal de detalhes
+    document.getElementById('resend-message-btn')?.addEventListener('click', () => {
+      const messageId = document.querySelector('#messageDetailsModal').getAttribute('data-message-id');
+      if (messageId) {
+        // Fecha o modal de detalhes
+        bootstrap.Modal.getInstance(document.getElementById('messageDetailsModal')).hide();
+        // Reenvia a mensagem
+        resendMessage(messageId);
+      }
+    });
+  }
+
+  // Função para alternar entre tipos de destinatário
+  function toggleRecipientType() {
+    const singleContainer = document.getElementById('single-recipient-container');
+    const multipleContainer = document.getElementById('multiple-recipients-container');
+    
+    if (document.getElementById('single-recipient').checked) {
+      singleContainer.classList.remove('d-none');
+      multipleContainer.classList.add('d-none');
+    } else {
+      singleContainer.classList.add('d-none');
+      multipleContainer.classList.remove('d-none');
+      
+      // Carrega as tags para o filtro se ainda não foram carregadas
+      loadTagsForFilter();
+    }
+  }
+
+  // Função para carregar as tags para o filtro
+  async function loadTagsForFilter() {
+    try {
+      const tags = await API.clients.getTags();
+      const filterSelect = document.getElementById('recipient-filter');
+      
+      if (filterSelect && tags && tags.length > 0) {
+        // Adiciona as opções de tags
+        const options = tags.map(tag => `<option value="${tag}">${tag}</option>`).join('');
+        filterSelect.innerHTML = '<option value="">Todos os Clientes</option>' + options;
+        
+        // Configura o evento de mudança para atualizar a contagem
+        filterSelect.addEventListener('change', updateRecipientCount);
+        
+        // Atualiza a contagem inicial
+        updateRecipientCount();
+      }
+    } catch (error) {
+      console.error('Erro ao carregar tags:', error);
+    }
+  }
+
+  // Função para atualizar a contagem de destinatários
+  async function updateRecipientCount() {
+    try {
+      const tag = document.getElementById('recipient-filter').value;
+      
+      // Aqui você faria uma chamada para a API para obter a contagem de clientes com a tag selecionada
+      // Por enquanto, vamos simular com um valor aleatório
+      const count = tag ? Math.floor(Math.random() * 50) + 1 : Math.floor(Math.random() * 200) + 50;
+      
+      document.getElementById('recipient-count').textContent = count;
+    } catch (error) {
+      console.error('Erro ao atualizar contagem de destinatários:', error);
+    }
+  }
+
+  // Função para obter o rótulo do status da mensagem
+  function getMessageStatusLabel(status) {
+    switch (status) {
+      case 'sent': return 'Enviada';
+      case 'delivered': return 'Entregue';
+      case 'read': return 'Lida';
+      case 'failed': return 'Falha';
+      default: return 'Desconhecido';
+    }
+  }
+
+  // Função para formatar data e hora
+  function formatDateTime(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Implementação das funções restantes será adicionada no arquivo JavaScript específico
+</script>

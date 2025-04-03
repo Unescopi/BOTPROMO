@@ -1,0 +1,413 @@
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-cog me-2"></i>Configurações</h2>
+    <button class="btn btn-primary" id="save-settings-btn">
+      <i class="fas fa-save me-1"></i>Salvar Alterações
+    </button>
+  </div>
+
+  <!-- Tabs de Configuração -->
+  <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="api-tab" data-bs-toggle="tab" data-bs-target="#api-tab-pane" type="button" role="tab">
+        <i class="fas fa-plug me-1"></i>API WhatsApp
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="messages-tab" data-bs-toggle="tab" data-bs-target="#messages-tab-pane" type="button" role="tab">
+        <i class="fas fa-comment-dots me-1"></i>Mensagens
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tags-tab" data-bs-toggle="tab" data-bs-target="#tags-tab-pane" type="button" role="tab">
+        <i class="fas fa-tags me-1"></i>Tags
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="scheduler-tab" data-bs-toggle="tab" data-bs-target="#scheduler-tab-pane" type="button" role="tab">
+        <i class="fas fa-clock me-1"></i>Agendamento
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="backup-tab" data-bs-toggle="tab" data-bs-target="#backup-tab-pane" type="button" role="tab">
+        <i class="fas fa-database me-1"></i>Backup
+      </button>
+    </li>
+  </ul>
+
+  <!-- Conteúdo das Tabs -->
+  <div class="tab-content" id="settingsTabContent">
+    <!-- Tab API WhatsApp -->
+    <div class="tab-pane fade show active" id="api-tab-pane" role="tabpanel" aria-labelledby="api-tab" tabindex="0">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Configurações da Evolution API</h5>
+        </div>
+        <div class="card-body">
+          <form id="api-settings-form">
+            <div class="mb-3">
+              <label for="api-url" class="form-label">URL da API*</label>
+              <input type="url" class="form-control" id="api-url" required>
+              <div class="form-text">Ex: http://localhost:8080</div>
+            </div>
+            <div class="mb-3">
+              <label for="api-key" class="form-label">Chave da API*</label>
+              <input type="text" class="form-control" id="api-key" required>
+            </div>
+            <div class="mb-3">
+              <label for="instance-name" class="form-label">Nome da Instância*</label>
+              <input type="text" class="form-control" id="instance-name" required>
+              <div class="form-text">Nome da instância configurada na Evolution API</div>
+            </div>
+            <div class="mb-3">
+              <label for="webhook-url" class="form-label">URL do Webhook (opcional)</label>
+              <input type="url" class="form-control" id="webhook-url">
+              <div class="form-text">URL para receber notificações de status de mensagens</div>
+            </div>
+          </form>
+          <div class="d-flex justify-content-between mt-4">
+            <button class="btn btn-outline-primary" id="test-connection-btn">
+              <i class="fas fa-plug me-1"></i>Testar Conexão
+            </button>
+            <button class="btn btn-warning" id="disconnect-whatsapp-btn">
+              <i class="fas fa-power-off me-1"></i>Desconectar WhatsApp
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Mensagens -->
+    <div class="tab-pane fade" id="messages-tab-pane" role="tabpanel" aria-labelledby="messages-tab" tabindex="0">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Configurações de Mensagens</h5>
+        </div>
+        <div class="card-body">
+          <form id="messages-settings-form">
+            <div class="mb-3">
+              <label for="default-message-footer" class="form-label">Rodapé Padrão</label>
+              <textarea class="form-control" id="default-message-footer" rows="2"></textarea>
+              <div class="form-text">Texto que será adicionado ao final de todas as mensagens</div>
+            </div>
+            <div class="mb-3">
+              <label for="max-message-length" class="form-label">Tamanho Máximo da Mensagem</label>
+              <input type="number" class="form-control" id="max-message-length" min="100" max="4096" value="1024">
+            </div>
+            <div class="mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="enable-read-receipts" checked>
+                <label class="form-check-label" for="enable-read-receipts">Habilitar confirmação de leitura</label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="enable-typing-indicator">
+                <label class="form-check-label" for="enable-typing-indicator">Mostrar indicador de digitação</label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="retry-attempts" class="form-label">Tentativas de Reenvio</label>
+              <input type="number" class="form-control" id="retry-attempts" min="0" max="5" value="3">
+              <div class="form-text">Número de tentativas de reenvio para mensagens com falha</div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Tags -->
+    <div class="tab-pane fade" id="tags-tab-pane" role="tabpanel" aria-labelledby="tags-tab" tabindex="0">
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Gerenciamento de Tags</h5>
+          <button class="btn btn-sm btn-primary" id="add-tag-btn">
+            <i class="fas fa-plus me-1"></i>Nova Tag
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Nome da Tag</th>
+                  <th>Clientes</th>
+                  <th>Cor</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tags-table-body">
+                <!-- Carregado dinamicamente -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Agendamento -->
+    <div class="tab-pane fade" id="scheduler-tab-pane" role="tabpanel" aria-labelledby="scheduler-tab" tabindex="0">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Configurações de Agendamento</h5>
+        </div>
+        <div class="card-body">
+          <form id="scheduler-settings-form">
+            <div class="mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="enable-scheduler" checked>
+                <label class="form-check-label" for="enable-scheduler">Habilitar agendador</label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label for="check-interval" class="form-label">Intervalo de Verificação (minutos)</label>
+              <input type="number" class="form-control" id="check-interval" min="1" max="60" value="5">
+              <div class="form-text">Frequência com que o sistema verifica por promoções agendadas</div>
+            </div>
+            <div class="mb-3">
+              <label for="timezone" class="form-label">Fuso Horário</label>
+              <select class="form-select" id="timezone">
+                <option value="America/Sao_Paulo">Brasília (GMT-3)</option>
+                <option value="America/Manaus">Manaus (GMT-4)</option>
+                <option value="America/Belem">Belém (GMT-3)</option>
+                <option value="America/Bahia">Salvador (GMT-3)</option>
+                <option value="America/Recife">Recife (GMT-3)</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="daily-limit" class="form-label">Limite Diário de Mensagens</label>
+              <input type="number" class="form-control" id="daily-limit" min="0" value="1000">
+              <div class="form-text">0 = sem limite</div>
+            </div>
+            <div class="mb-3">
+              <label for="quiet-hours-start" class="form-label">Horário de Silêncio - Início</label>
+              <input type="time" class="form-control" id="quiet-hours-start" value="22:00">
+            </div>
+            <div class="mb-3">
+              <label for="quiet-hours-end" class="form-label">Horário de Silêncio - Fim</label>
+              <input type="time" class="form-control" id="quiet-hours-end" value="08:00">
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Backup -->
+    <div class="tab-pane fade" id="backup-tab-pane" role="tabpanel" aria-labelledby="backup-tab" tabindex="0">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Backup e Restauração</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-4">
+            <h6>Backup de Dados</h6>
+            <p>Faça o backup de todos os dados do sistema, incluindo clientes, promoções e configurações.</p>
+            <button class="btn btn-primary" id="create-backup-btn">
+              <i class="fas fa-download me-1"></i>Criar Backup
+            </button>
+          </div>
+          <hr>
+          <div class="mb-4">
+            <h6>Restaurar Backup</h6>
+            <p>Restaure um backup previamente criado. <strong>Atenção:</strong> Isso substituirá todos os dados atuais.</p>
+            <div class="input-group mb-3">
+              <input type="file" class="form-control" id="restore-file" accept=".json">
+              <button class="btn btn-warning" type="button" id="restore-backup-btn">
+                <i class="fas fa-upload me-1"></i>Restaurar
+              </button>
+            </div>
+          </div>
+          <hr>
+          <div>
+            <h6 class="text-danger">Limpar Dados</h6>
+            <p>Exclua todos os dados do sistema. <strong>Atenção:</strong> Esta ação não pode ser desfeita.</p>
+            <button class="btn btn-outline-danger" id="clear-data-btn">
+              <i class="fas fa-trash me-1"></i>Limpar Todos os Dados
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Nova Tag -->
+<div class="modal fade" id="newTagModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="tag-modal-title">
+          <i class="fas fa-tag me-2"></i>Nova Tag
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="tag-form">
+          <input type="hidden" id="tag-id">
+          <div class="mb-3">
+            <label for="tag-name" class="form-label">Nome da Tag*</label>
+            <input type="text" class="form-control" id="tag-name" required>
+          </div>
+          <div class="mb-3">
+            <label for="tag-color" class="form-label">Cor</label>
+            <input type="color" class="form-control form-control-color" id="tag-color" value="#3a86ff">
+          </div>
+          <div class="mb-3">
+            <label for="tag-description" class="form-label">Descrição</label>
+            <textarea class="form-control" id="tag-description" rows="2"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="save-tag-btn">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Script específico para a página de configurações
+  document.addEventListener('DOMContentLoaded', function() {
+    // Inicializa os componentes da página de configurações
+    initSettingsPage();
+  });
+
+  function initSettingsPage() {
+    // Carrega as configurações atuais
+    loadSettings();
+    
+    // Carrega as tags
+    loadTags();
+    
+    // Configura os manipuladores de eventos
+    setupSettingsEventHandlers();
+  }
+
+  // Função para carregar as configurações
+  async function loadSettings() {
+    try {
+      // Aqui você faria uma chamada para a API para obter as configurações
+      // Por enquanto, vamos simular com valores padrão
+      
+      // Configurações da API
+      document.getElementById('api-url').value = 'http://localhost:8080';
+      document.getElementById('api-key').value = 'sua-chave-api';
+      document.getElementById('instance-name').value = 'cafeteria-bot';
+      
+      // Configurações de mensagens
+      document.getElementById('default-message-footer').value = '\n\nCafeteria Delícia - Sabor em cada xícara!';
+      
+      // Configurações do agendador
+      document.getElementById('timezone').value = 'America/Sao_Paulo';
+      
+    } catch (error) {
+      console.error('Erro ao carregar configurações:', error);
+      UI.showToast('Erro ao carregar configurações', 'danger');
+    }
+  }
+
+  // Função para carregar as tags
+  async function loadTags() {
+    try {
+      const tags = await API.clients.getTags();
+      renderTagsTable(tags);
+    } catch (error) {
+      console.error('Erro ao carregar tags:', error);
+      UI.showToast('Erro ao carregar tags', 'danger');
+    }
+  }
+
+  // Função para renderizar a tabela de tags
+  function renderTagsTable(tags) {
+    const tableBody = document.getElementById('tags-table-body');
+    
+    if (!tags || tags.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="4" class="text-center py-4">
+            <i class="fas fa-info-circle me-2"></i>Nenhuma tag encontrada
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    
+    // Aqui você renderizaria as tags reais
+    // Por enquanto, vamos simular com algumas tags de exemplo
+    const exampleTags = [
+      { id: '1', name: 'VIP', color: '#ff6b6b', count: 15 },
+      { id: '2', name: 'Frequente', color: '#4ecdc4', count: 42 },
+      { id: '3', name: 'Aniversário', color: '#ffd166', count: 28 },
+      { id: '4', name: 'Inativo', color: '#ced4da', count: 7 }
+    ];
+    
+    tableBody.innerHTML = exampleTags.map(tag => `
+      <tr>
+        <td>
+          <span class="client-tag" style="background-color: ${tag.color}20; color: ${tag.color}">
+            ${tag.name}
+          </span>
+        </td>
+        <td>${tag.count} clientes</td>
+        <td>
+          <div class="d-flex align-items-center">
+            <div class="color-preview me-2" style="width: 20px; height: 20px; border-radius: 4px; background-color: ${tag.color}"></div>
+            <span>${tag.color}</span>
+          </div>
+        </td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary edit-tag" data-id="${tag.id}">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-outline-danger delete-tag" data-id="${tag.id}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+    
+    // Adiciona manipuladores de eventos para os botões
+    addTagButtonHandlers();
+  }
+
+  // Função para adicionar manipuladores de eventos aos botões da tabela
+  function addTagButtonHandlers() {
+    // Botões de edição
+    document.querySelectorAll('.edit-tag').forEach(btn => {
+      btn.addEventListener('click', () => editTag(btn.getAttribute('data-id')));
+    });
+    
+    // Botões de exclusão
+    document.querySelectorAll('.delete-tag').forEach(btn => {
+      btn.addEventListener('click', () => deleteTag(btn.getAttribute('data-id')));
+    });
+  }
+
+  // Função para configurar os manipuladores de eventos
+  function setupSettingsEventHandlers() {
+    // Botão de salvar configurações
+    document.getElementById('save-settings-btn')?.addEventListener('click', saveSettings);
+    
+    // Botão de testar conexão
+    document.getElementById('test-connection-btn')?.addEventListener('click', testConnection);
+    
+    // Botão de desconectar WhatsApp
+    document.getElementById('disconnect-whatsapp-btn')?.addEventListener('click', disconnectWhatsApp);
+    
+    // Botão de adicionar tag
+    document.getElementById('add-tag-btn')?.addEventListener('click', showNewTagModal);
+    
+    // Botão de salvar tag
+    document.getElementById('save-tag-btn')?.addEventListener('click', saveTag);
+    
+    // Botões de backup
+    document.getElementById('create-backup-btn')?.addEventListener('click', createBackup);
+    document.getElementById('restore-backup-btn')?.addEventListener('click', restoreBackup);
+    document.getElementById('clear-data-btn')?.addEventListener('click', clearData);
+  }
+
+  // Implementação das funções restantes será adicionada no arquivo JavaScript específico
+</script>

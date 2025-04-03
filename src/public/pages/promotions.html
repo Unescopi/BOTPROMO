@@ -1,0 +1,525 @@
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-bullhorn me-2"></i>Gerenciamento de Promoções</h2>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newPromoModal">
+      <i class="fas fa-plus me-1"></i>Nova Promoção
+    </button>
+  </div>
+
+  <!-- Filtros e Pesquisa -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" class="form-control" id="promo-search" placeholder="Buscar promoções...">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <select class="form-select" id="promo-type-filter">
+            <option value="">Todos os Tipos</option>
+            <option value="daily">Diária</option>
+            <option value="weekly">Semanal</option>
+            <option value="special">Especial</option>
+            <option value="flash">Flash</option>
+            <option value="birthday">Aniversário</option>
+            <option value="custom">Personalizada</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <select class="form-select" id="promo-status-filter">
+            <option value="">Todos os Status</option>
+            <option value="draft">Rascunho</option>
+            <option value="scheduled">Agendada</option>
+            <option value="active">Ativa</option>
+            <option value="completed">Concluída</option>
+            <option value="cancelled">Cancelada</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-secondary w-100" id="reset-promo-filters">
+            <i class="fas fa-undo me-1"></i>Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards de Promoções -->
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4" id="promotions-container">
+    <!-- Carregado dinamicamente -->
+    <div class="col text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Carregando...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paginação -->
+  <nav aria-label="Paginação de promoções" class="d-flex justify-content-center">
+    <ul class="pagination" id="promotions-pagination">
+      <li class="page-item disabled">
+        <a class="page-link" href="#" aria-label="Anterior">
+          <span aria-hidden="true">&laquo;</span>
+        </a>
+      </li>
+      <li class="page-item active"><a class="page-link" href="#">1</a></li>
+      <li class="page-item"><a class="page-link" href="#">2</a></li>
+      <li class="page-item"><a class="page-link" href="#">3</a></li>
+      <li class="page-item">
+        <a class="page-link" href="#" aria-label="Próximo">
+          <span aria-hidden="true">&raquo;</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</div>
+
+<!-- Modal de Detalhes da Promoção -->
+<div class="modal fade" id="promoDetailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="promo-detail-title">
+          <i class="fas fa-bullhorn me-2"></i>Detalhes da Promoção
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-8">
+            <h4 id="promo-detail-name">Nome da Promoção</h4>
+            <p class="text-muted mb-3" id="promo-detail-dates">
+              <i class="fas fa-calendar-alt me-1"></i>
+              <span id="promo-detail-start-date">01/01/2025</span>
+              <span id="promo-detail-end-date-container">
+                - <span id="promo-detail-end-date">31/01/2025</span>
+              </span>
+            </p>
+            <div class="mb-3">
+              <span class="badge bg-primary me-2" id="promo-detail-type">Tipo</span>
+              <span class="badge bg-success" id="promo-detail-status">Status</span>
+            </div>
+            <h5>Descrição</h5>
+            <p id="promo-detail-description">Descrição da promoção...</p>
+            
+            <h5>Mensagem</h5>
+            <div class="card mb-3">
+              <div class="card-body bg-light" id="promo-detail-message">
+                Mensagem da promoção...
+              </div>
+            </div>
+            
+            <h5>Agendamento</h5>
+            <ul class="list-group mb-3">
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>Tipo de Agendamento</span>
+                <span class="badge bg-primary rounded-pill" id="promo-detail-schedule-type">Único</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>Horário de Envio</span>
+                <span id="promo-detail-send-time">10:00</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between align-items-center" id="promo-detail-cron-container">
+                <span>Expressão Cron</span>
+                <code id="promo-detail-cron">* * * * *</code>
+              </li>
+            </ul>
+          </div>
+          <div class="col-md-4">
+            <div class="card mb-3">
+              <div class="card-header bg-white">
+                <h6 class="mb-0">Estatísticas</h6>
+              </div>
+              <div class="card-body">
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <span>Enviadas</span>
+                    <span class="badge bg-primary rounded-pill" id="promo-detail-sent">0</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <span>Entregues</span>
+                    <span class="badge bg-success rounded-pill" id="promo-detail-delivered">0</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <span>Lidas</span>
+                    <span class="badge bg-info rounded-pill" id="promo-detail-read">0</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <span>Falhas</span>
+                    <span class="badge bg-danger rounded-pill" id="promo-detail-failed">0</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            
+            <div class="card mb-3">
+              <div class="card-header bg-white">
+                <h6 class="mb-0">Segmentação</h6>
+              </div>
+              <div class="card-body">
+                <div id="promo-detail-all-clients">
+                  <span class="badge bg-success mb-2">Todos os Clientes</span>
+                </div>
+                <div id="promo-detail-targeting" class="d-none">
+                  <div class="mb-2" id="promo-detail-include-tags-container">
+                    <small class="text-muted d-block mb-1">Tags Incluídas:</small>
+                    <div id="promo-detail-include-tags"></div>
+                  </div>
+                  <div class="mb-2" id="promo-detail-exclude-tags-container">
+                    <small class="text-muted d-block mb-1">Tags Excluídas:</small>
+                    <div id="promo-detail-exclude-tags"></div>
+                  </div>
+                  <div class="mb-2" id="promo-detail-frequency-container">
+                    <small class="text-muted d-block mb-1">Pontuação de Frequência:</small>
+                    <span id="promo-detail-frequency">Min: 0, Max: 100</span>
+                  </div>
+                  <div id="promo-detail-last-visit-container">
+                    <small class="text-muted d-block mb-1">Visitou nos últimos:</small>
+                    <span id="promo-detail-last-visit">30 dias</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div id="promo-detail-media-container" class="card mb-3 d-none">
+              <div class="card-header bg-white">
+                <h6 class="mb-0">Mídia</h6>
+              </div>
+              <div class="card-body p-0">
+                <img src="" alt="Mídia da promoção" id="promo-detail-media" class="img-fluid">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+        <button type="button" class="btn btn-primary" id="edit-promo-btn">
+          <i class="fas fa-edit me-1"></i>Editar
+        </button>
+        <button type="button" class="btn btn-success" id="send-promo-now-btn">
+          <i class="fas fa-paper-plane me-1"></i>Enviar Agora
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Teste de Promoção -->
+<div class="modal fade" id="testPromoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-vial me-2"></i>Testar Promoção
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="test-promo-form">
+          <input type="hidden" id="test-promo-id">
+          <div class="mb-3">
+            <label for="test-phone" class="form-label">Número de Telefone para Teste*</label>
+            <input type="text" class="form-control" id="test-phone" required>
+            <div class="form-text">Formato internacional: 5511999999999</div>
+          </div>
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Nota:</strong> O teste enviará a mensagem exatamente como ela será enviada aos clientes, incluindo qualquer mídia anexada.
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="send-test-btn">
+          <i class="fas fa-paper-plane me-1"></i>Enviar Teste
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Confirmação de Cancelamento -->
+<div class="modal fade" id="cancelPromoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Cancelamento
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cancel-promo-id">
+        <p>Tem certeza que deseja cancelar esta promoção? Ela não será mais enviada aos clientes.</p>
+        <p><strong>Promoção: <span id="cancel-promo-name"></span></strong></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Voltar</button>
+        <button type="button" class="btn btn-warning" id="confirm-cancel-btn">
+          <i class="fas fa-ban me-1"></i>Cancelar Promoção
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deletePromoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger">
+          <i class="fas fa-trash me-2"></i>Confirmar Exclusão
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="delete-promo-id">
+        <p>Tem certeza que deseja excluir permanentemente esta promoção? Esta ação não pode ser desfeita.</p>
+        <p><strong>Promoção: <span id="delete-promo-name"></span></strong></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirm-delete-promo-btn">
+          <i class="fas fa-trash me-1"></i>Excluir Permanentemente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Script específico para a página de promoções
+  document.addEventListener('DOMContentLoaded', function() {
+    // Inicializa os componentes da página de promoções
+    initPromotionsPage();
+  });
+
+  function initPromotionsPage() {
+    // Carrega a lista de promoções
+    loadPromotions();
+    
+    // Configura os manipuladores de eventos
+    setupPromoEventHandlers();
+  }
+
+  // Função para carregar a lista de promoções
+  async function loadPromotions() {
+    try {
+      const promotions = await API.promotions.getAll();
+      renderPromotionsCards(promotions);
+    } catch (error) {
+      console.error('Erro ao carregar promoções:', error);
+      UI.showToast('Erro ao carregar a lista de promoções', 'danger');
+    }
+  }
+
+  // Função para renderizar os cards de promoções
+  function renderPromotionsCards(promotions) {
+    const container = document.getElementById('promotions-container');
+    
+    if (!promotions || promotions.length === 0) {
+      container.innerHTML = `
+        <div class="col-12 text-center py-5">
+          <i class="fas fa-info-circle fa-3x mb-3 text-muted"></i>
+          <h5 class="text-muted">Nenhuma promoção encontrada</h5>
+          <p class="text-muted">Clique em "Nova Promoção" para criar sua primeira campanha</p>
+        </div>
+      `;
+      return;
+    }
+    
+    container.innerHTML = promotions.map(promo => `
+      <div class="col">
+        <div class="card h-100 promo-item ${promo.status}">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="badge ${getPromoStatusBadgeClass(promo.status)}">${getPromoStatusLabel(promo.status)}</span>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
+                <i class="fas fa-ellipsis-v"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item view-promo" href="#" data-id="${promo._id}"><i class="fas fa-eye me-2"></i>Ver Detalhes</a></li>
+                <li><a class="dropdown-item edit-promo" href="#" data-id="${promo._id}"><i class="fas fa-edit me-2"></i>Editar</a></li>
+                <li><a class="dropdown-item test-promo" href="#" data-id="${promo._id}"><i class="fas fa-vial me-2"></i>Testar</a></li>
+                ${promo.status === 'scheduled' ? 
+                  `<li><a class="dropdown-item cancel-promo" href="#" data-id="${promo._id}"><i class="fas fa-ban me-2"></i>Cancelar</a></li>` : ''}
+                ${promo.status === 'draft' || promo.status === 'scheduled' ? 
+                  `<li><a class="dropdown-item send-promo" href="#" data-id="${promo._id}"><i class="fas fa-paper-plane me-2"></i>Enviar Agora</a></li>` : ''}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item delete-promo text-danger" href="#" data-id="${promo._id}"><i class="fas fa-trash me-2"></i>Excluir</a></li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-body">
+            <h5 class="card-title">${promo.name}</h5>
+            <p class="card-text text-truncate-2">${promo.description}</p>
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="badge bg-light text-dark">
+                <i class="fas fa-tag me-1"></i>${getPromoTypeLabel(promo.type)}
+              </span>
+              <small class="text-muted">
+                <i class="fas fa-calendar-alt me-1"></i>${formatDate(promo.schedule?.startDate || promo.createdAt)}
+              </small>
+            </div>
+          </div>
+          <div class="card-footer bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <small class="text-muted">
+                ${promo.stats ? 
+                  `<i class="fas fa-paper-plane me-1"></i>${promo.stats.sent || 0} enviadas` : 
+                  `<i class="fas fa-users me-1"></i>${promo.targeting?.estimatedReach || 'Todos'} destinatários`}
+              </small>
+              <button class="btn btn-sm btn-outline-primary view-promo" data-id="${promo._id}">
+                Detalhes
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    
+    // Adiciona manipuladores de eventos para os botões
+    addPromoButtonHandlers();
+  }
+
+  // Função para adicionar manipuladores de eventos aos botões dos cards
+  function addPromoButtonHandlers() {
+    // Botões de visualização
+    document.querySelectorAll('.view-promo').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        viewPromoDetails(btn.getAttribute('data-id'));
+      });
+    });
+    
+    // Botões de edição
+    document.querySelectorAll('.edit-promo').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        editPromotion(btn.getAttribute('data-id'));
+      });
+    });
+    
+    // Botões de teste
+    document.querySelectorAll('.test-promo').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showTestPromoModal(btn.getAttribute('data-id'));
+      });
+    });
+    
+    // Botões de cancelamento
+    document.querySelectorAll('.cancel-promo').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showCancelPromoModal(btn.getAttribute('data-id'));
+      });
+    });
+    
+    // Botões de envio
+    document.querySelectorAll('.send-promo').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        sendPromoNow(btn.getAttribute('data-id'));
+      });
+    });
+    
+    // Botões de exclusão
+    document.querySelectorAll('.delete-promo').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showDeletePromoModal(btn.getAttribute('data-id'));
+      });
+    });
+  }
+
+  // Função para configurar os manipuladores de eventos
+  function setupPromoEventHandlers() {
+    // Filtros
+    document.getElementById('promo-search')?.addEventListener('input', applyPromoFilters);
+    document.getElementById('promo-type-filter')?.addEventListener('change', applyPromoFilters);
+    document.getElementById('promo-status-filter')?.addEventListener('change', applyPromoFilters);
+    document.getElementById('reset-promo-filters')?.addEventListener('click', resetPromoFilters);
+    
+    // Botão de editar no modal de detalhes
+    document.getElementById('edit-promo-btn')?.addEventListener('click', () => {
+      const promoId = document.querySelector('#promoDetailsModal').getAttribute('data-promo-id');
+      if (promoId) {
+        // Fecha o modal de detalhes
+        bootstrap.Modal.getInstance(document.getElementById('promoDetailsModal')).hide();
+        // Abre o modal de edição
+        editPromotion(promoId);
+      }
+    });
+    
+    // Botão de enviar agora no modal de detalhes
+    document.getElementById('send-promo-now-btn')?.addEventListener('click', () => {
+      const promoId = document.querySelector('#promoDetailsModal').getAttribute('data-promo-id');
+      if (promoId) {
+        // Fecha o modal de detalhes
+        bootstrap.Modal.getInstance(document.getElementById('promoDetailsModal')).hide();
+        // Envia a promoção
+        sendPromoNow(promoId);
+      }
+    });
+    
+    // Botão de enviar teste
+    document.getElementById('send-test-btn')?.addEventListener('click', sendPromoTest);
+    
+    // Botão de confirmar cancelamento
+    document.getElementById('confirm-cancel-btn')?.addEventListener('click', cancelPromotion);
+    
+    // Botão de confirmar exclusão
+    document.getElementById('confirm-delete-promo-btn')?.addEventListener('click', deletePromotion);
+  }
+
+  // Função para obter a classe do badge de status da promoção
+  function getPromoStatusBadgeClass(status) {
+    switch (status) {
+      case 'draft': return 'bg-secondary';
+      case 'scheduled': return 'bg-warning text-dark';
+      case 'active': return 'bg-success';
+      case 'completed': return 'bg-primary';
+      case 'cancelled': return 'bg-danger';
+      default: return 'bg-secondary';
+    }
+  }
+
+  // Função para obter o rótulo do status da promoção
+  function getPromoStatusLabel(status) {
+    switch (status) {
+      case 'draft': return 'Rascunho';
+      case 'scheduled': return 'Agendada';
+      case 'active': return 'Ativa';
+      case 'completed': return 'Concluída';
+      case 'cancelled': return 'Cancelada';
+      default: return 'Desconhecido';
+    }
+  }
+
+  // Função para obter o rótulo do tipo de promoção
+  function getPromoTypeLabel(type) {
+    switch (type) {
+      case 'daily': return 'Diária';
+      case 'weekly': return 'Semanal';
+      case 'special': return 'Especial';
+      case 'flash': return 'Flash';
+      case 'birthday': return 'Aniversário';
+      case 'custom': return 'Personalizada';
+      default: return 'Personalizada';
+    }
+  }
+
+  // Função para formatar uma data
+  function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+  }
+
+  // Implementação das funções restantes será adicionada no arquivo JavaScript específico
+</script>

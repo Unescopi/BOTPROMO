@@ -1,0 +1,478 @@
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-users me-2"></i>Gerenciamento de Clientes</h2>
+    <div>
+      <button class="btn btn-outline-primary me-2" id="export-clients-btn">
+        <i class="fas fa-file-export me-1"></i>Exportar
+      </button>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#importClientsModal">
+        <i class="fas fa-file-import me-1"></i>Importar Clientes
+      </button>
+    </div>
+  </div>
+
+  <!-- Filtros e Pesquisa -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="input-group">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" class="form-control" id="client-search" placeholder="Buscar clientes...">
+          </div>
+        </div>
+        <div class="col-md-3">
+          <select class="form-select" id="tag-filter">
+            <option value="">Todas as Tags</option>
+            <!-- Tags carregadas dinamicamente -->
+          </select>
+        </div>
+        <div class="col-md-3">
+          <select class="form-select" id="status-filter">
+            <option value="">Todos os Status</option>
+            <option value="active">Ativos</option>
+            <option value="inactive">Inativos</option>
+            <option value="blocked">Bloqueados</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-secondary w-100" id="reset-filters">
+            <i class="fas fa-undo me-1"></i>Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela de Clientes -->
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-striped mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="select-all-clients">
+                  <label class="form-check-label" for="select-all-clients"></label>
+                </div>
+              </th>
+              <th>Nome</th>
+              <th>Telefone</th>
+              <th>Email</th>
+              <th>Tags</th>
+              <th>Status</th>
+              <th>Última Visita</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="clients-table-body">
+            <!-- Carregado dinamicamente -->
+            <tr>
+              <td colspan="8" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Carregando...</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer d-flex justify-content-between align-items-center">
+      <div>
+        <span id="selected-count">0</span> de <span id="total-count">0</span> clientes selecionados
+      </div>
+      <div class="btn-group" role="group">
+        <button class="btn btn-outline-primary" id="add-tag-btn" disabled>
+          <i class="fas fa-tag me-1"></i>Adicionar Tag
+        </button>
+        <button class="btn btn-outline-danger" id="delete-selected-btn" disabled>
+          <i class="fas fa-trash me-1"></i>Excluir
+        </button>
+      </div>
+      <div>
+        <nav aria-label="Paginação de clientes">
+          <ul class="pagination mb-0">
+            <li class="page-item disabled">
+              <a class="page-link" href="#" aria-label="Anterior">
+                <span aria-hidden="true">&laquo;</span>
+              </a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item"><a class="page-link" href="#">2</a></li>
+            <li class="page-item"><a class="page-link" href="#">3</a></li>
+            <li class="page-item">
+              <a class="page-link" href="#" aria-label="Próximo">
+                <span aria-hidden="true">&raquo;</span>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Importação de Clientes -->
+<div class="modal fade" id="importClientsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-file-import me-2"></i>Importar Clientes
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="import-clients-form">
+          <div class="mb-3">
+            <label for="client-file" class="form-label">Arquivo CSV</label>
+            <input type="file" class="form-control" id="client-file" accept=".csv" required>
+            <div class="form-text">
+              O arquivo deve estar no formato CSV com as colunas: nome, telefone, email (opcional), tags (opcional)
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="has-header" checked>
+              <label class="form-check-label" for="has-header">
+                Arquivo contém cabeçalho
+              </label>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Opções de Importação</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="import-option" id="skip-duplicates" value="skip" checked>
+              <label class="form-check-label" for="skip-duplicates">
+                Pular registros duplicados
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="import-option" id="update-duplicates" value="update">
+              <label class="form-check-label" for="update-duplicates">
+                Atualizar registros duplicados
+              </label>
+            </div>
+          </div>
+        </form>
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          <strong>Dica:</strong> Certifique-se de que os números de telefone estejam no formato internacional (Ex: 5511999999999)
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="import-btn">
+          <i class="fas fa-file-import me-1"></i>Importar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Novo/Editar Cliente -->
+<div class="modal fade" id="clientModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="client-modal-title">
+          <i class="fas fa-user-plus me-2"></i>Novo Cliente
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="client-form">
+          <input type="hidden" id="client-id">
+          <div class="mb-3">
+            <label for="client-name" class="form-label">Nome*</label>
+            <input type="text" class="form-control" id="client-name" required>
+          </div>
+          <div class="mb-3">
+            <label for="client-phone" class="form-label">Telefone*</label>
+            <input type="text" class="form-control" id="client-phone" required>
+            <div class="form-text">Formato internacional: 5511999999999</div>
+          </div>
+          <div class="mb-3">
+            <label for="client-email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="client-email">
+          </div>
+          <div class="mb-3">
+            <label for="client-tags" class="form-label">Tags</label>
+            <input type="text" class="form-control" id="client-tags" placeholder="Separe as tags por vírgula">
+          </div>
+          <div class="mb-3">
+            <label for="client-notes" class="form-label">Observações</label>
+            <textarea class="form-control" id="client-notes" rows="3"></textarea>
+          </div>
+          <div class="mb-3">
+            <label for="client-status" class="form-label">Status</label>
+            <select class="form-select" id="client-status">
+              <option value="active">Ativo</option>
+              <option value="inactive">Inativo</option>
+              <option value="blocked">Bloqueado</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="save-client-btn">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Adicionar Tag -->
+<div class="modal fade" id="addTagModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-tag me-2"></i>Adicionar Tag
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <form id="add-tag-form">
+          <div class="mb-3">
+            <label for="tag-name" class="form-label">Tag</label>
+            <input type="text" class="form-control" id="tag-name" required>
+          </div>
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="tag-option" id="add-tag" value="add" checked>
+              <label class="form-check-label" for="add-tag">
+                Adicionar tag (mantém tags existentes)
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="tag-option" id="replace-tag" value="replace">
+              <label class="form-check-label" for="replace-tag">
+                Substituir todas as tags
+              </label>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirm-add-tag-btn">Adicionar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger">
+          <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Exclusão
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja excluir os clientes selecionados? Esta ação não pode ser desfeita.</p>
+        <p><strong>Número de clientes a serem excluídos: <span id="delete-count">0</span></strong></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirm-delete-btn">
+          <i class="fas fa-trash me-1"></i>Excluir Permanentemente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Script específico para a página de clientes
+  document.addEventListener('DOMContentLoaded', function() {
+    // Inicializa os componentes da página de clientes
+    initClientsPage();
+  });
+
+  function initClientsPage() {
+    // Carrega a lista de clientes
+    loadClients();
+    
+    // Carrega as tags para o filtro
+    loadTags();
+    
+    // Configura os manipuladores de eventos
+    setupEventHandlers();
+  }
+
+  // Função para carregar a lista de clientes
+  async function loadClients() {
+    try {
+      const clients = await API.clients.getAll();
+      renderClientsTable(clients);
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+      UI.showToast('Erro ao carregar a lista de clientes', 'danger');
+    }
+  }
+
+  // Função para renderizar a tabela de clientes
+  function renderClientsTable(clients) {
+    const tableBody = document.getElementById('clients-table-body');
+    
+    if (!clients || clients.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="8" class="text-center py-4">
+            <i class="fas fa-info-circle me-2"></i>Nenhum cliente encontrado
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    
+    tableBody.innerHTML = clients.map(client => `
+      <tr>
+        <td>
+          <div class="form-check">
+            <input class="form-check-input client-checkbox" type="checkbox" value="${client._id}">
+          </div>
+        </td>
+        <td>${client.name}</td>
+        <td>${client.phone}</td>
+        <td>${client.email || '-'}</td>
+        <td>
+          ${client.tags && client.tags.length > 0 
+            ? client.tags.map(tag => `<span class="client-tag">${tag}</span>`).join('')
+            : '<span class="text-muted">Sem tags</span>'
+          }
+        </td>
+        <td>
+          <span class="badge ${getStatusBadgeClass(client.status)}">${getStatusLabel(client.status)}</span>
+        </td>
+        <td>${client.lastVisit ? formatDate(client.lastVisit) : 'Nunca'}</td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary edit-client" data-id="${client._id}">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-outline-danger delete-client" data-id="${client._id}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+    
+    // Atualiza o contador
+    document.getElementById('total-count').textContent = clients.length;
+    
+    // Adiciona manipuladores de eventos para os botões
+    addClientButtonHandlers();
+  }
+
+  // Função para adicionar manipuladores de eventos aos botões da tabela
+  function addClientButtonHandlers() {
+    // Botões de edição
+    document.querySelectorAll('.edit-client').forEach(btn => {
+      btn.addEventListener('click', () => editClient(btn.getAttribute('data-id')));
+    });
+    
+    // Botões de exclusão
+    document.querySelectorAll('.delete-client').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const clientId = btn.getAttribute('data-id');
+        // Marca o checkbox do cliente
+        document.querySelector(`.client-checkbox[value="${clientId}"]`).checked = true;
+        updateSelectedCount();
+        // Abre o modal de confirmação
+        showDeleteConfirmModal();
+      });
+    });
+    
+    // Checkboxes
+    document.querySelectorAll('.client-checkbox').forEach(checkbox => {
+      checkbox.addEventListener('change', updateSelectedCount);
+    });
+  }
+
+  // Função para configurar os manipuladores de eventos
+  function setupEventHandlers() {
+    // Checkbox "Selecionar todos"
+    document.getElementById('select-all-clients')?.addEventListener('change', (e) => {
+      document.querySelectorAll('.client-checkbox').forEach(checkbox => {
+        checkbox.checked = e.target.checked;
+      });
+      updateSelectedCount();
+    });
+    
+    // Botão de importar clientes
+    document.getElementById('import-btn')?.addEventListener('click', importClients);
+    
+    // Botão de exportar clientes
+    document.getElementById('export-clients-btn')?.addEventListener('click', exportClients);
+    
+    // Botão de adicionar tag
+    document.getElementById('add-tag-btn')?.addEventListener('click', showAddTagModal);
+    
+    // Botão de confirmar adição de tag
+    document.getElementById('confirm-add-tag-btn')?.addEventListener('click', addTagToSelected);
+    
+    // Botão de excluir selecionados
+    document.getElementById('delete-selected-btn')?.addEventListener('click', showDeleteConfirmModal);
+    
+    // Botão de confirmar exclusão
+    document.getElementById('confirm-delete-btn')?.addEventListener('click', deleteSelected);
+    
+    // Filtros
+    document.getElementById('client-search')?.addEventListener('input', applyFilters);
+    document.getElementById('tag-filter')?.addEventListener('change', applyFilters);
+    document.getElementById('status-filter')?.addEventListener('change', applyFilters);
+    document.getElementById('reset-filters')?.addEventListener('click', resetFilters);
+    
+    // Botão de salvar cliente
+    document.getElementById('save-client-btn')?.addEventListener('click', saveClient);
+  }
+
+  // Função para atualizar o contador de selecionados
+  function updateSelectedCount() {
+    const selectedCount = document.querySelectorAll('.client-checkbox:checked').length;
+    document.getElementById('selected-count').textContent = selectedCount;
+    
+    // Habilita/desabilita botões de ação em massa
+    const addTagBtn = document.getElementById('add-tag-btn');
+    const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+    
+    if (addTagBtn) addTagBtn.disabled = selectedCount === 0;
+    if (deleteSelectedBtn) deleteSelectedBtn.disabled = selectedCount === 0;
+  }
+
+  // Função para obter a classe do badge de status
+  function getStatusBadgeClass(status) {
+    switch (status) {
+      case 'active': return 'bg-success';
+      case 'inactive': return 'bg-secondary';
+      case 'blocked': return 'bg-danger';
+      default: return 'bg-secondary';
+    }
+  }
+
+  // Função para obter o rótulo do status
+  function getStatusLabel(status) {
+    switch (status) {
+      case 'active': return 'Ativo';
+      case 'inactive': return 'Inativo';
+      case 'blocked': return 'Bloqueado';
+      default: return 'Desconhecido';
+    }
+  }
+
+  // Função para formatar uma data
+  function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR');
+  }
+
+  // Implementação das funções restantes será adicionada no arquivo JavaScript específico
+</script>
