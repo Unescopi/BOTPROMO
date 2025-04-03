@@ -5,6 +5,13 @@
 const MessagesManager = {
   init() {
     console.log('Inicializando gerenciamento de mensagens...');
+    
+    // Verificar se o usuário está autenticado
+    if (!Auth.isAuthenticated()) {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      return;
+    }
+    
     this.setupEventListeners();
     this.loadMessages();
   },
@@ -169,144 +176,173 @@ const MessagesManager = {
       
     } catch (error) {
       console.error('Erro ao carregar mensagens:', error);
-      messagesContainer.innerHTML = `
-        <div class="alert alert-danger text-center">
-          <i class="fas fa-exclamation-circle me-2"></i>Erro ao carregar mensagens
-        </div>
-      `;
-    }
-  },
-  
-  sendMessage() {
-    // Obter o formulário
-    const messageForm = document.getElementById('new-message-form');
-    if (!messageForm) {
-      console.error('Formulário de mensagem não encontrado');
-      return;
-    }
-    
-    // Validar o formulário
-    if (!messageForm.checkValidity()) {
-      messageForm.reportValidity();
-      return;
-    }
-    
-    // Coletar dados do formulário
-    const recipientType = document.querySelector('input[name="recipient-type"]:checked').value;
-    const messageText = document.getElementById('message-text').value;
-    
-    if (!messageText) {
-      alert('Por favor, insira o texto da mensagem');
-      return;
-    }
-    
-    const messageData = {
-      text: messageText,
-      recipientType: recipientType === 'single-recipient' ? 'single' : 'multiple'
-    };
-    
-    // Adicionar o destinatário específico se for para um único cliente
-    if (messageData.recipientType === 'single') {
-      const phone = document.getElementById('recipient-phone').value;
-      if (!phone) {
-        alert('Por favor, insira o número de telefone do destinatário');
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
         return;
       }
-      messageData.recipient = phone;
-    } else {
-      // Caso seja para múltiplos clientes, adicionar filtro
-      const tagFilter = document.getElementById('recipient-filter').value;
-      if (tagFilter) {
-        messageData.filter = { tag: tagFilter };
+      
+      if (messagesContainer) {
+        messagesContainer.innerHTML = `
+          <div class="alert alert-danger text-center">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Erro ao carregar mensagens: ${error.message || 'Erro desconhecido'}
+          </div>
+        `;
       }
     }
-    
-    // Mostrar indicador de carregamento
-    const sendButton = document.getElementById('send-message-btn');
-    if (sendButton) {
-      sendButton.disabled = true;
-      sendButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando...';
+  },
+  
+  async sendMessage() {
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Obter dados do formulário
+      const messageText = document.getElementById('message-text').value.trim();
+      const clientIds = Array.from(document.querySelectorAll('#client-selection option:checked')).map(option => option.value);
+      const mediaUrl = document.getElementById('message-media-url').value.trim();
+      
+      if (!messageText && !mediaUrl) {
+        this.showToast('Por favor, insira uma mensagem ou adicione uma mídia', 'warning');
+        return;
+      }
+      
+      if (clientIds.length === 0) {
+        this.showToast('Selecione pelo menos um cliente para enviar a mensagem', 'warning');
+        return;
+      }
+      
+      // Desabilitar o botão de envio para evitar cliques duplos
+      const sendButton = document.getElementById('send-message-btn');
+      if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando...';
+      }
+      
+      // Preparar dados para envio
+      const messageData = {
+        text: messageText,
+        clientIds: clientIds,
+        mediaUrl: mediaUrl || null
+      };
+      
+      // Enviar mensagem usando a API centralizada
+      const result = await API.messages.send(messageData);
+      
+      // Fechar o modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('newMessageModal'));
+      if (modal) {
+        modal.hide();
+      }
+      
+      // Limpar o formulário
+      this.resetMessageForm();
+      
+      // Mostrar notificação de sucesso
+      this.showToast(`Mensagem enviada com sucesso para ${result.sentCount || clientIds.length} cliente(s)`, 'success');
+      
+      // Recarregar a lista de mensagens
+      this.loadMessages();
+      
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao enviar mensagem: ${error.message || 'Erro desconhecido'}`, 'danger');
+    } finally {
+      // Restaurar o botão de envio
+      const sendButton = document.getElementById('send-message-btn');
+      if (sendButton) {
+        sendButton.disabled = false;
+        sendButton.innerHTML = 'Enviar';
+      }
+    }
+  },
+  
+  async resendMessage(messageId) {
+    if (!messageId) {
+      this.showToast('ID da mensagem não fornecido', 'warning');
+      return;
     }
     
-    console.log('Enviando mensagem:', messageData);
+    if (!confirm('Tem certeza que deseja reenviar esta mensagem?')) {
+      return;
+    }
     
-    // Usar API centralizada em vez de fetch direto
-    API.post('/messages', messageData)
-      .then(data => {
-        // Fechar o modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('sendMessageModal'));
-        if (modal) modal.hide();
-        
-        // Limpar formulário
-        messageForm.reset();
-        
-        // Recarregar a lista de mensagens
-        this.loadMessages();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Mensagem enviada com sucesso', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao enviar mensagem:', error);
-        this.showToast(`Erro ao enviar mensagem: ${error.message}`, 'danger');
-      })
-      .finally(() => {
-        // Restaurar o botão
-        if (sendButton) {
-          sendButton.disabled = false;
-          sendButton.innerHTML = 'Enviar';
-        }
-      });
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Reenviar mensagem usando a API centralizada
+      await API.messages.resend(messageId);
+      
+      // Mostrar notificação de sucesso
+      this.showToast('Mensagem reenviada com sucesso', 'success');
+      
+      // Recarregar a lista de mensagens
+      this.loadMessages();
+    } catch (error) {
+      console.error('Erro ao reenviar mensagem:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao reenviar mensagem: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
   },
   
-  resendMessage(messageId) {
-    if (!confirm('Deseja reenviar esta mensagem?')) return;
+  async deleteMessage(messageId) {
+    if (!messageId) {
+      this.showToast('ID da mensagem não fornecido', 'warning');
+      return;
+    }
     
-    fetch(`/api/messages/${messageId}/resend`, {
-      method: 'POST'
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao reenviar mensagem');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Recarregar a lista de mensagens
-        this.loadMessages();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Mensagem reenviada com sucesso', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao reenviar mensagem:', error);
-        this.showToast('Erro ao reenviar mensagem', 'danger');
-      });
-  },
-  
-  deleteMessage(messageId) {
-    if (!confirm('Tem certeza que deseja excluir esta mensagem?')) return;
+    if (!confirm('Tem certeza que deseja excluir esta mensagem?')) {
+      return;
+    }
     
-    fetch(`/api/messages/${messageId}`, {
-      method: 'DELETE'
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao excluir mensagem');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Recarregar a lista de mensagens
-        this.loadMessages();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Mensagem excluída com sucesso', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao excluir mensagem:', error);
-        this.showToast('Erro ao excluir mensagem', 'danger');
-      });
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Excluir mensagem usando a API centralizada
+      await API.messages.delete(messageId);
+      
+      // Mostrar notificação de sucesso
+      this.showToast('Mensagem excluída com sucesso', 'success');
+      
+      // Recarregar a lista de mensagens
+      this.loadMessages();
+    } catch (error) {
+      console.error('Erro ao excluir mensagem:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao excluir mensagem: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
   },
   
   filterMessages() {
@@ -436,12 +472,127 @@ const MessagesManager = {
     alert(message);
   },
   
-  uploadMedia() {
-    // Implementação para upload de mídia
+  async uploadMedia() {
+    const fileInput = document.getElementById('message-media');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      this.showToast('Selecione um arquivo para enviar', 'warning');
+      return;
+    }
+    
+    // Verificar se o usuário está autenticado
+    if (!Auth.isAuthenticated()) {
+      Auth.logout();
+      return;
+    }
+    
+    const file = fileInput.files[0];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    if (file.size > maxSize) {
+      this.showToast('O arquivo é muito grande. Tamanho máximo: 10MB', 'warning');
+      return;
+    }
+    
+    // Verificar tipos de arquivo permitidos
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'audio/mp3', 'audio/ogg', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      this.showToast('Tipo de arquivo não permitido. Use imagens, vídeos, áudios ou PDF.', 'warning');
+      return;
+    }
+    
+    try {
+      // Mostrar indicador de carregamento
+      const uploadBtn = document.getElementById('upload-message-media-btn');
+      if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando...';
+      }
+      
+      // Criar FormData para upload
+      const formData = new FormData();
+      formData.append('media', file);
+      
+      // Usar o método específico da API centralizada
+      const result = await API.messages.uploadMedia(formData);
+      
+      // Atualizar o campo de mídia no formulário
+      if (result && result.url) {
+        document.getElementById('message-media-url').value = result.url;
+        
+        // Mostrar prévia da mídia
+        const previewContainer = document.getElementById('media-preview');
+        if (previewContainer) {
+          if (file.type.startsWith('image/')) {
+            previewContainer.innerHTML = `
+              <div class="card mt-2">
+                <img src="${result.url}" class="card-img-top img-thumbnail" style="max-height: 200px; object-fit: contain;">
+                <div class="card-body p-2">
+                  <p class="card-text small">${file.name}</p>
+                </div>
+              </div>
+            `;
+          } else {
+            previewContainer.innerHTML = `
+              <div class="card mt-2">
+                <div class="card-body p-2">
+                  <i class="fas fa-file me-2"></i>${file.name}
+                </div>
+              </div>
+            `;
+          }
+        }
+        
+        // Mostrar botão de remover mídia
+        const removeBtn = document.getElementById('remove-message-media-btn');
+        if (removeBtn) {
+          removeBtn.classList.remove('d-none');
+        }
+        
+        this.showToast('Mídia enviada com sucesso', 'success');
+      }
+    } catch (error) {
+      console.error('Erro ao enviar mídia:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao enviar mídia: ${error.message || 'Erro desconhecido'}`, 'danger');
+    } finally {
+      // Restaurar o botão
+      const uploadBtn = document.getElementById('upload-message-media-btn');
+      if (uploadBtn) {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = 'Enviar Mídia';
+      }
+    }
   },
   
   removeMedia() {
-    // Implementação para remover mídia
+    // Limpar o campo de URL da mídia
+    document.getElementById('message-media-url').value = '';
+    
+    // Limpar o input de arquivo
+    const fileInput = document.getElementById('message-media');
+    if (fileInput) {
+      fileInput.value = '';
+    }
+    
+    // Limpar a prévia da mídia
+    const previewContainer = document.getElementById('media-preview');
+    if (previewContainer) {
+      previewContainer.innerHTML = '';
+    }
+    
+    // Esconder o botão de remover mídia
+    const removeBtn = document.getElementById('remove-message-media-btn');
+    if (removeBtn) {
+      removeBtn.classList.add('d-none');
+    }
+    
+    this.showToast('Mídia removida', 'info');
   },
   
   resetMessageForm() {

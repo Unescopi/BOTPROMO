@@ -5,6 +5,13 @@
 const ClientsManager = {
   init() {
     console.log('Inicializando gerenciamento de clientes...');
+    
+    // Verificar se o usuário está autenticado
+    if (!Auth.isAuthenticated()) {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      return;
+    }
+    
     this.setupEventListeners();
     this.loadClients();
   },
@@ -118,43 +125,48 @@ const ClientsManager = {
         endpoint += `?${params.toString()}`;
       }
       
-      // Usar API centralizada
+      // Usar o módulo API centralizado
       const clients = await API.get(endpoint);
       
       if (clients.length === 0) {
         tableBody.innerHTML = `
           <tr>
             <td colspan="8" class="text-center py-4">
-              <i class="fas fa-info-circle me-2"></i>Nenhum cliente encontrado
+              <div class="alert alert-info mb-0">
+                <i class="fas fa-info-circle me-2"></i>Nenhum cliente encontrado
+              </div>
             </td>
           </tr>
         `;
         return;
       }
       
-      // Renderizar a lista de clientes
-      tableBody.innerHTML = clients.map(client => `
+      // Renderizar a tabela de clientes
+      tableBody.innerHTML = clients.map((client, index) => `
         <tr>
+          <td>
+            <div class="form-check">
+              <input class="form-check-input client-checkbox" type="checkbox" data-id="${client._id}" onchange="ClientsManager.updateSelectedCount()">
+            </div>
+          </td>
+          <td>${index + 1}</td>
           <td>${client.name}</td>
           <td>${client.phone}</td>
-          <td>${client.email || '-'}</td>
           <td>
-            ${client.tags && client.tags.length > 0 
-              ? client.tags.map(tag => `<span class="badge bg-secondary me-1">${tag}</span>`).join('')
-              : '-'
-            }
-          </td>
-          <td>${client.lastVisit ? this.formatDate(client.lastVisit) : '-'}</td>
-          <td>${client.visits || 0}</td>
-          <td>
-            <span class="badge ${client.status === 'active' ? 'bg-success' : 'bg-secondary'}">${client.status || 'active'}</span>
+            <span class="badge ${this.getStatusBadgeClass(client.status)}">
+              ${this.getStatusLabel(client.status)}
+            </span>
           </td>
           <td>
-            <div class="btn-group" role="group">
-              <button class="btn btn-sm btn-outline-primary" onclick="ClientsManager.editClient('${client._id}')">
+            ${client.tags?.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('') || ''}
+          </td>
+          <td>${this.formatDate(client.createdAt)}</td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-primary" onclick="ClientsManager.editClient('${client._id}')">
                 <i class="fas fa-edit"></i>
               </button>
-              <button class="btn btn-sm btn-outline-danger" onclick="ClientsManager.deleteClient('${client._id}')">
+              <button class="btn btn-outline-danger" onclick="ClientsManager.deleteClient('${client._id}')">
                 <i class="fas fa-trash"></i>
               </button>
             </div>
@@ -164,184 +176,276 @@ const ClientsManager = {
       
     } catch (error) {
       console.error('Erro ao carregar clientes:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
       tableBody.innerHTML = `
         <tr>
-          <td colspan="8" class="text-center text-danger py-4">
-            <i class="fas fa-exclamation-circle me-2"></i>Erro ao carregar clientes
+          <td colspan="8" class="text-center py-4">
+            <div class="alert alert-danger mb-0">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              Erro ao carregar clientes: ${error.message || 'Erro desconhecido'}
+            </div>
           </td>
         </tr>
       `;
     }
   },
   
-  saveClient() {
-    const clientId = document.getElementById('client-id').value;
-    const clientName = document.getElementById('client-name').value;
-    const clientPhone = document.getElementById('client-phone').value;
-    const clientEmail = document.getElementById('client-email').value;
-    const clientTags = document.getElementById('client-tags').value;
-    const clientNotes = document.getElementById('client-notes').value;
-    const clientStatus = document.getElementById('client-status').value;
-    
-    if (!clientName || !clientPhone) {
-      alert('Nome e telefone são obrigatórios!');
-      return;
-    }
-    
-    // Processar as tags (separadas por vírgulas)
-    const tags = clientTags ? clientTags.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
-    
-    const clientData = {
-      name: clientName,
-      phone: clientPhone,
-      email: clientEmail || null,
-      tags: tags,
-      notes: clientNotes || '',
-      status: clientStatus || 'active'
-    };
-    
-    console.log('Salvando cliente:', clientData);
-    
-    const endpoint = clientId ? `/clients/${clientId}` : '/clients';
-    const method = clientId ? 'put' : 'post';
-    
-    // Mostrar indicador de carregamento
-    const saveButton = document.getElementById('save-client-btn');
-    if (saveButton) {
-      saveButton.disabled = true;
-      saveButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
-    }
-    
-    // Usar o módulo API centralizado em vez de fetch direto
-    API[method](endpoint, clientData)
-      .then(data => {
-        // Fechar o modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newClientModal'));
-        if (modal) modal.hide();
-        
-        // Recarregar a lista de clientes
-        this.loadClients();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Cliente salvo com sucesso!', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao salvar cliente:', error);
-        this.showToast(`Erro ao salvar cliente: ${error.message}`, 'danger');
-      })
-      .finally(() => {
-        // Restaurar o botão
-        if (saveButton) {
-          saveButton.disabled = false;
-          saveButton.innerHTML = 'Salvar';
-        }
-      });
-  },
-  
-  editClient(clientId) {
-    // Limpa o formulário
-    document.getElementById('client-form').reset();
-    
-    // Atualiza o título do modal
-    document.getElementById('client-modal-title').innerHTML = '<i class="fas fa-user-edit me-2"></i>Editar Cliente';
-    
-    // Busca os dados do cliente
-    fetch(`/api/clients/${clientId}`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao buscar dados do cliente');
-        }
-        return response.json();
-      })
-      .then(client => {
-        // Preenche o formulário com os dados do cliente
-        document.getElementById('client-id').value = client._id;
-        document.getElementById('client-name').value = client.name;
-        document.getElementById('client-phone').value = client.phone;
-        document.getElementById('client-email').value = client.email || '';
-        document.getElementById('client-tags').value = client.tags.join(', ');
-        document.getElementById('client-notes').value = client.notes || '';
-        document.getElementById('client-status').value = client.status || 'active';
-        
-        // Abre o modal
-        const modal = new bootstrap.Modal(document.getElementById('clientModal'));
-        modal.show();
-      })
-      .catch(error => {
-        console.error('Erro ao editar cliente:', error);
-        this.showToast('Erro ao buscar dados do cliente', 'danger');
-      });
-  },
-  
-  deleteClient(clientId) {
-    if (!confirm('Tem certeza que deseja excluir este cliente?')) return;
-    
-    fetch(`/api/clients/${clientId}`, {
-      method: 'DELETE'
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao excluir cliente');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Recarregar a lista de clientes
-        this.loadClients();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Cliente excluído com sucesso', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao excluir cliente:', error);
-        this.showToast('Erro ao excluir cliente', 'danger');
-      });
-  },
-  
-  importClients() {
-    const fileInput = document.getElementById('client-file');
-    const hasHeader = document.getElementById('has-header').checked;
-    const importOption = document.querySelector('input[name="import-option"]:checked').value;
-    
-    if (!fileInput.files[0]) {
-      alert('Selecione um arquivo CSV');
-      return;
-    }
-    
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-    formData.append('hasHeader', hasHeader);
-    formData.append('importOption', importOption);
-    
-    fetch('/api/clients/import', {
-      method: 'POST',
-      body: formData
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao importar clientes');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Fechar o modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('importClientsModal'));
+  async saveClient() {
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Obter dados do formulário
+      const clientId = document.getElementById('client-id').value;
+      const name = document.getElementById('client-name').value.trim();
+      const phone = document.getElementById('client-phone').value.trim();
+      const email = document.getElementById('client-email').value.trim();
+      const status = document.getElementById('client-status').value;
+      const tags = document.getElementById('client-tags').value.split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag);
+      
+      if (!name || !phone) {
+        this.showToast('Nome e telefone são obrigatórios', 'warning');
+        return;
+      }
+      
+      // Desabilitar o botão de salvar para evitar cliques duplos
+      const saveButton = document.getElementById('save-client-btn');
+      if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
+      }
+      
+      // Preparar dados do cliente
+      const clientData = {
+        name,
+        phone,
+        email,
+        status,
+        tags
+      };
+      
+      // Usar o módulo API centralizado
+      if (clientId) {
+        // Atualizar cliente existente
+        await API.clients.update(clientId, clientData);
+      } else {
+        // Criar novo cliente
+        await API.clients.create(clientData);
+      }
+      
+      // Fechar o modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('clientModal'));
+      if (modal) {
         modal.hide();
-        
-        // Recarregar a lista de clientes
-        this.loadClients();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast(`${data.imported} clientes importados com sucesso`, 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao importar clientes:', error);
-        this.showToast('Erro ao importar clientes', 'danger');
-      });
+      }
+      
+      // Limpar o formulário
+      this.resetClientForm();
+      
+      // Recarregar a lista de clientes
+      this.loadClients();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast(`Cliente ${clientId ? 'atualizado' : 'criado'} com sucesso`, 'success');
+      
+    } catch (error) {
+      console.error('Erro ao salvar cliente:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao salvar cliente: ${error.message || 'Erro desconhecido'}`, 'danger');
+    } finally {
+      // Restaurar o botão de salvar
+      const saveButton = document.getElementById('save-client-btn');
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.innerHTML = 'Salvar';
+      }
+    }
   },
   
-  exportClients() {
-    window.location.href = '/api/clients/export';
+  async editClient(clientId) {
+    if (!clientId) {
+      this.showToast('ID do cliente não fornecido', 'warning');
+      return;
+    }
+    
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Obter dados do cliente
+      const client = await API.clients.get(clientId);
+      
+      // Preencher o formulário
+      document.getElementById('client-id').value = client._id;
+      document.getElementById('client-name').value = client.name || '';
+      document.getElementById('client-phone').value = client.phone || '';
+      document.getElementById('client-email').value = client.email || '';
+      document.getElementById('client-status').value = client.status || 'active';
+      document.getElementById('client-tags').value = client.tags?.join(', ') || '';
+      
+      // Atualizar o título do modal
+      document.getElementById('client-modal-title').innerHTML = '<i class="fas fa-user-edit me-2"></i>Editar Cliente';
+      
+      // Abrir o modal
+      const modal = new bootstrap.Modal(document.getElementById('clientModal'));
+      modal.show();
+      
+    } catch (error) {
+      console.error('Erro ao carregar cliente para edição:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao carregar cliente: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
+  },
+  
+  async deleteClient(clientId) {
+    if (!clientId) {
+      this.showToast('ID do cliente não fornecido', 'warning');
+      return;
+    }
+    
+    if (!confirm('Tem certeza que deseja excluir este cliente?')) {
+      return;
+    }
+    
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Usar o módulo API centralizado
+      await API.clients.delete(clientId);
+      
+      // Recarregar a lista de clientes
+      this.loadClients();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast('Cliente excluído com sucesso', 'success');
+    } catch (error) {
+      console.error('Erro ao excluir cliente:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao excluir cliente: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
+  },
+  
+  async importClients() {
+    const fileInput = document.getElementById('import-file');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      this.showToast('Selecione um arquivo CSV para importar', 'warning');
+      return;
+    }
+    
+    // Verificar se o usuário está autenticado
+    if (!Auth.isAuthenticated()) {
+      Auth.logout();
+      return;
+    }
+    
+    const file = fileInput.files[0];
+    
+    // Verificar se é um arquivo CSV
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+      this.showToast('Por favor, selecione um arquivo CSV válido', 'warning');
+      return;
+    }
+    
+    try {
+      // Mostrar indicador de carregamento
+      const importBtn = document.getElementById('import-btn');
+      if (importBtn) {
+        importBtn.disabled = true;
+        importBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Importando...';
+      }
+      
+      // Criar FormData para upload
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Usar o módulo API centralizado
+      const result = await API.clients.import(formData);
+      
+      // Fechar o modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('importModal'));
+      if (modal) {
+        modal.hide();
+      }
+      
+      // Limpar o input de arquivo
+      fileInput.value = '';
+      
+      // Recarregar a lista de clientes
+      this.loadClients();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast(`${result.imported} clientes importados com sucesso`, 'success');
+      
+    } catch (error) {
+      console.error('Erro ao importar clientes:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao importar clientes: ${error.message || 'Erro desconhecido'}`, 'danger');
+    } finally {
+      // Restaurar o botão
+      const importBtn = document.getElementById('import-btn');
+      if (importBtn) {
+        importBtn.disabled = false;
+        importBtn.innerHTML = 'Importar';
+      }
+    }
+  },
+  
+  async exportClients() {
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Redirecionar para a API de exportação
+      window.location.href = `${API.baseUrl}/clients/export`;
+    } catch (error) {
+      console.error('Erro ao exportar clientes:', error);
+      this.showToast(`Erro ao exportar clientes: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
   },
   
   filterClients() {
@@ -352,11 +456,11 @@ const ClientsManager = {
     const rows = document.querySelectorAll('#clients-table-body tr');
     
     rows.forEach(row => {
-      const name = row.cells[1]?.textContent.toLowerCase() || '';
-      const phone = row.cells[2]?.textContent.toLowerCase() || '';
-      const email = row.cells[3]?.textContent.toLowerCase() || '';
-      const tags = row.cells[4]?.textContent.toLowerCase() || '';
-      const status = row.cells[5]?.textContent.toLowerCase() || '';
+      const name = row.cells[2]?.textContent.toLowerCase() || '';
+      const phone = row.cells[3]?.textContent.toLowerCase() || '';
+      const email = row.cells[4]?.textContent.toLowerCase() || '';
+      const tags = row.cells[5]?.textContent.toLowerCase() || '';
+      const status = row.cells[6]?.textContent.toLowerCase() || '';
       
       const matchesSearch = name.includes(searchTerm) || 
                           phone.includes(searchTerm) || 
@@ -404,74 +508,76 @@ const ClientsManager = {
     return Array.from(checkboxes).map(checkbox => checkbox.getAttribute('data-id'));
   },
   
-  addTagToSelected() {
+  async addTagToSelected() {
     const clientIds = this.getSelectedClientIds();
     if (clientIds.length === 0) return;
     
     const tag = prompt('Digite a tag que deseja adicionar aos clientes selecionados:');
     if (!tag) return;
     
-    fetch('/api/clients/tag', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Usar o módulo API centralizado
+      await API.clients.addTagToMany({
         clientIds,
         tag
-      })
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao adicionar tag');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Recarregar a lista de clientes
-        this.loadClients();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast(`Tag adicionada a ${clientIds.length} clientes`, 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao adicionar tag:', error);
-        this.showToast('Erro ao adicionar tag', 'danger');
       });
+      
+      // Recarregar a lista de clientes
+      this.loadClients();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast(`Tag adicionada a ${clientIds.length} clientes`, 'success');
+    } catch (error) {
+      console.error('Erro ao adicionar tag:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao adicionar tag: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
   },
   
-  deleteSelected() {
+  async deleteSelected() {
     const clientIds = this.getSelectedClientIds();
     if (clientIds.length === 0) return;
     
     if (!confirm(`Tem certeza que deseja excluir ${clientIds.length} clientes?`)) return;
     
-    fetch('/api/clients/batch', {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        clientIds
-      })
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao excluir clientes');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Recarregar a lista de clientes
-        this.loadClients();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast(`${clientIds.length} clientes excluídos com sucesso`, 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao excluir clientes:', error);
-        this.showToast('Erro ao excluir clientes', 'danger');
-      });
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Usar o módulo API centralizado para excluir vários clientes
+      await API.clients.deleteMany(clientIds);
+      
+      // Recarregar a lista de clientes
+      this.loadClients();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast(`${clientIds.length} clientes excluídos com sucesso`, 'success');
+    } catch (error) {
+      console.error('Erro ao excluir clientes:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao excluir clientes: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
   },
   
   getStatusBadgeClass(status) {

@@ -7,10 +7,38 @@ const API = {
   // URL base da API
   baseUrl: '/api',
 
+  // Obter o token de autenticação do localStorage
+  getAuthToken() {
+    return localStorage.getItem('authToken');
+  },
+
+  // Adicionar cabeçalhos de autenticação
+  getAuthHeaders() {
+    const token = this.getAuthToken();
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
+  },
+
   // Métodos genéricos para requisições HTTP
   async get(endpoint) {
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`);
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        headers: this.getAuthHeaders()
+      });
+      
+      if (response.status === 401) {
+        // Token expirado ou inválido
+        this.handleAuthError();
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+      }
+      
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -23,11 +51,16 @@ const API = {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify(data)
       });
+      
+      if (response.status === 401) {
+        // Token expirado ou inválido
+        this.handleAuthError();
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+      }
+      
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -40,11 +73,16 @@ const API = {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(),
         body: JSON.stringify(data)
       });
+      
+      if (response.status === 401) {
+        // Token expirado ou inválido
+        this.handleAuthError();
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+      }
+      
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -57,15 +95,31 @@ const API = {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: this.getAuthHeaders()
       });
+      
+      if (response.status === 401) {
+        // Token expirado ou inválido
+        this.handleAuthError();
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+      }
+      
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       return await response.json();
     } catch (error) {
       console.error(`Erro na requisição DELETE para ${endpoint}:`, error);
       throw error;
+    }
+  },
+
+  // Tratamento de erro de autenticação
+  handleAuthError() {
+    // Limpar o token inválido
+    localStorage.removeItem('authToken');
+    
+    // Redirecionar para a página de login se não estiver lá
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login?expired=true';
     }
   },
 
@@ -76,6 +130,13 @@ const API = {
         method: 'POST',
         body: formData
       });
+      
+      if (response.status === 401) {
+        // Token expirado ou inválido
+        this.handleAuthError();
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+      }
+      
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -91,6 +152,13 @@ const API = {
         method: 'POST',
         body: formData
       });
+      
+      if (response.status === 401) {
+        // Token expirado ou inválido
+        this.handleAuthError();
+        throw new Error('Sessão expirada. Por favor, faça login novamente.');
+      }
+      
       if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
       return await response.json();
     } catch (error) {
@@ -138,6 +206,10 @@ const API = {
     
     async delete(id) {
       return API.delete(`/clients/${id}`);
+    },
+    
+    async deleteMany(clientIds) {
+      return API.post('/clients/batch', { clientIds, method: 'DELETE' });
     },
     
     async import(formData) {
@@ -232,6 +304,18 @@ const API = {
     
     async updateStatus(id, statusData) {
       return API.put(`/messages/${id}/status`, statusData);
+    },
+    
+    async delete(id) {
+      return API.delete(`/messages/${id}`);
+    },
+    
+    async resend(id) {
+      return API.post(`/messages/${id}/resend`);
+    },
+    
+    async uploadMedia(formData) {
+      return API.uploadFile('/media/upload', formData);
     },
     
     async getStats() {

@@ -7,6 +7,15 @@
 const App = {
   // Inicialização da aplicação
   init() {
+    // Verifica se o usuário está autenticado
+    if (!Auth.isAuthenticated()) {
+      window.location.href = '/login';
+      return;
+    }
+
+    // Atualiza informações do usuário na interface
+    this.updateUserInfo();
+    
     // Inicializa a interface do usuário
     if (window.appUI) {
       console.log('UI já inicializada');
@@ -20,7 +29,53 @@ const App = {
     // Configura atualizações periódicas
     this.setupPeriodicUpdates();
     
+    // Configura manipuladores de eventos
+    this.setupEventHandlers();
+    
     console.log('Cafeteria Promo Bot inicializado com sucesso!');
+  },
+
+  // Atualiza informações do usuário na interface
+  updateUserInfo() {
+    const userInfo = Auth.getUserInfo();
+    if (!userInfo) return;
+    
+    // Atualiza o nome do usuário no dropdown
+    const userDropdown = document.getElementById('userDropdown');
+    if (userDropdown) {
+      userDropdown.innerHTML = `
+        <i class="fas fa-user-circle me-1"></i>${userInfo.name || userInfo.email || 'Usuário'}
+      `;
+    }
+    
+    // Atualiza permissões baseadas no papel do usuário
+    this.updatePermissions(userInfo.role);
+  },
+  
+  // Atualiza elementos da interface baseados no papel do usuário
+  updatePermissions(role) {
+    // Elementos que só administradores podem ver
+    const adminElements = document.querySelectorAll('.admin-only');
+    adminElements.forEach(el => {
+      el.style.display = role === 'admin' ? '' : 'none';
+    });
+    
+    // Elementos que operadores e administradores podem ver
+    const operatorElements = document.querySelectorAll('.operator-only');
+    operatorElements.forEach(el => {
+      el.style.display = ['admin', 'operator'].includes(role) ? '' : 'none';
+    });
+  },
+  
+  // Configura manipuladores de eventos
+  setupEventHandlers() {
+    // Manipulador para o botão de logout
+    document.querySelectorAll('.logout-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        Auth.logout();
+      });
+    });
   },
 
   // Carrega os dados para o dashboard
@@ -45,13 +100,16 @@ const App = {
   // Busca estatísticas da API
   async fetchStats() {
     try {
-      const response = await fetch('/api/stats');
-      if (!response.ok) {
-        throw new Error('Falha ao obter estatísticas');
-      }
-      return await response.json();
+      const response = await API.get('/stats');
+      return response;
     } catch (error) {
       console.error('Erro ao buscar estatísticas:', error);
+      
+      // Se o erro for de autenticação, redireciona para o login
+      if (error.message.includes('Sessão expirada')) {
+        Auth.logout();
+      }
+      
       return null;
     }
   },
@@ -94,12 +152,7 @@ const App = {
       const recentPromosContainer = document.getElementById('recent-promos');
       if (!recentPromosContainer) return;
       
-      const response = await fetch('/api/promotions/recent');
-      if (!response.ok) {
-        throw new Error('Falha ao obter promoções recentes');
-      }
-      
-      const promotions = await response.json();
+      const promotions = await API.get('/promotions/recent');
       
       if (promotions.length === 0) {
         recentPromosContainer.innerHTML = `
@@ -131,13 +184,10 @@ const App = {
       
     } catch (error) {
       console.error('Erro ao carregar promoções recentes:', error);
-      if (document.getElementById('recent-promos')) {
-        document.getElementById('recent-promos').innerHTML = `
-          <div class="list-group-item text-center py-3">
-            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-            Erro ao carregar promoções
-          </div>
-        `;
+      
+      // Se o erro for de autenticação, redireciona para o login
+      if (error.message.includes('Sessão expirada')) {
+        Auth.logout();
       }
     }
   },
@@ -148,9 +198,7 @@ const App = {
       const upcomingPromosContainer = document.getElementById('upcoming-promos');
       if (!upcomingPromosContainer) return;
       
-      // Em produção, você buscaria isso da API
-      // Por enquanto, usamos dados de exemplo (ou poderia buscar de uma rota específica)
-      const upcomingPromos = [];
+      const upcomingPromos = await API.get('/promotions/upcoming');
       
       if (upcomingPromos.length === 0) {
         upcomingPromosContainer.innerHTML = `
@@ -196,6 +244,11 @@ const App = {
       
     } catch (error) {
       console.error('Erro ao carregar próximas promoções:', error);
+      
+      // Se o erro for de autenticação, redireciona para o login
+      if (error.message.includes('Sessão expirada')) {
+        Auth.logout();
+      }
     }
   },
 
@@ -235,19 +288,17 @@ const App = {
     if (!confirm('Tem certeza que deseja cancelar esta promoção?')) return;
     
     try {
-      const response = await fetch(`/api/promotions/${promoId}/cancel`, {
-        method: 'POST'
-      });
-      
-      if (response.ok) {
-        this.showToast('Promoção cancelada com sucesso', 'success');
-        this.loadUpcomingPromotions();
-      } else {
-        throw new Error('Falha ao cancelar promoção');
-      }
+      await API.post(`/promotions/${promoId}/cancel`);
+      this.showToast('Promoção cancelada com sucesso', 'success');
+      this.loadUpcomingPromotions();
     } catch (error) {
       console.error('Erro ao cancelar promoção:', error);
       this.showToast('Erro ao cancelar promoção', 'danger');
+      
+      // Se o erro for de autenticação, redireciona para o login
+      if (error.message.includes('Sessão expirada')) {
+        Auth.logout();
+      }
     }
   },
 
@@ -273,5 +324,16 @@ const App = {
 
 // Inicializa a aplicação quando o DOM estiver pronto
 document.addEventListener('DOMContentLoaded', () => {
-  App.init();
+  // Verifica se estamos em uma página que não precisa de autenticação
+  const publicPages = ['/login', '/reset-password', '/register'];
+  const isPublicPage = publicPages.some(page => window.location.pathname.includes(page));
+  
+  if (!isPublicPage) {
+    // Inicializa a autenticação antes de inicializar a aplicação
+    if (Auth.isAuthenticated()) {
+      App.init();
+    } else {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+    }
+  }
 });

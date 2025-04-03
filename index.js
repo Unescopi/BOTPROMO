@@ -51,10 +51,10 @@ mongoose.connect(process.env.MONGODB_URI)
 // Rotas da API
 app.use('/api', routes);
 
-// Corrigindo a configuração de rotas para assegurar que as rotas de API funcionem corretamente
-app.use('/api/clients', require('./src/routes/client'));
-app.use('/api/promotions', require('./src/routes/promotion'));  
-app.use('/api/messages', require('./src/routes/message'));
+// Removendo rotas duplicadas que já estão incluídas no módulo routes
+// app.use('/api/clients', require('./src/routes/client'));
+// app.use('/api/promotions', require('./src/routes/promotion'));  
+// app.use('/api/messages', require('./src/routes/message'));
 
 // Adiciona uma rota de fallback para lidar com navegação direta para rotas SPA
 app.get('/:page', (req, res) => {

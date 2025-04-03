@@ -5,6 +5,13 @@
 const PromotionsManager = {
   init() {
     console.log('Inicializando gerenciamento de promoções...');
+    
+    // Verificar se o usuário está autenticado
+    if (!Auth.isAuthenticated()) {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      return;
+    }
+    
     this.setupEventListeners();
     this.loadPromotions();
   },
@@ -87,12 +94,18 @@ const PromotionsManager = {
     }
     
     try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
       // Usar API centralizada
       const promotions = await API.get(endpoint);
       
       if (promotions.length === 0) {
         promotionsContainer.innerHTML = `
-          <div class="text-center py-4">
+          <div class="alert alert-info text-center py-4">
             <i class="fas fa-info-circle me-2"></i>Nenhuma promoção encontrada
           </div>
         `;
@@ -112,11 +125,11 @@ const PromotionsManager = {
               <small class="text-muted">Agendado para: ${promotion.scheduledFor ? this.formatDateTime(promotion.scheduledFor) : '-'}</small><br>
               <small class="text-muted">Envios: ${promotion.sentCount || 0}</small>
             </p>
-            <div class="btn-group" role="group">
+            <div class="btn-group">
               <button class="btn btn-sm btn-outline-primary" onclick="PromotionsManager.viewPromotion('${promotion._id}')">
-                <i class="fas fa-eye"></i> Visualizar
+                <i class="fas fa-eye"></i> Ver
               </button>
-              ${promotion.status === 'draft' || promotion.status === 'scheduled' ? `
+              ${promotion.status === 'draft' ? `
                 <button class="btn btn-sm btn-outline-secondary" onclick="PromotionsManager.editPromotion('${promotion._id}')">
                   <i class="fas fa-edit"></i> Editar
                 </button>
@@ -126,9 +139,11 @@ const PromotionsManager = {
                   <i class="fas fa-ban"></i> Cancelar
                 </button>
               ` : ''}
-              <button class="btn btn-sm btn-outline-danger" onclick="PromotionsManager.deletePromotion('${promotion._id}')">
-                <i class="fas fa-trash"></i> Excluir
-              </button>
+              ${['draft', 'sent', 'canceled', 'failed'].includes(promotion.status) ? `
+                <button class="btn btn-sm btn-outline-danger" onclick="PromotionsManager.deletePromotion('${promotion._id}')">
+                  <i class="fas fa-trash"></i> Excluir
+                </button>
+              ` : ''}
             </div>
           </div>
         </div>
@@ -136,154 +151,557 @@ const PromotionsManager = {
       
     } catch (error) {
       console.error('Erro ao carregar promoções:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
       promotionsContainer.innerHTML = `
-        <div class="text-center text-danger py-4">
-          <i class="fas fa-exclamation-circle me-2"></i>Erro ao carregar promoções
+        <div class="alert alert-danger text-center py-4">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Erro ao carregar promoções: ${error.message || 'Erro desconhecido'}
         </div>
       `;
     }
   },
   
-  savePromotion() {
-    const promoForm = document.getElementById('new-promo-form');
-    if (!promoForm) return;
-    
-    // Validar o formulário
-    if (!promoForm.checkValidity()) {
-      promoForm.reportValidity();
-      return;
-    }
-    
-    // Coletar dados do formulário
-    const promoData = {
-      name: document.getElementById('promo-name').value,
-      message: document.getElementById('message-text').value,
-      type: document.getElementById('promo-type').value,
-      targeting: {
-        type: document.querySelector('input[name="targeting-type"]:checked').value
-      },
-      schedule: {
-        type: document.getElementById('schedule-type').value,
-        startDate: document.getElementById('start-date').value,
-        sendTime: document.getElementById('send-time').value || '12:00'
-      },
-      status: 'scheduled'
-    };
-    
-    // Se a segmentação for específica, adicionar configurações de segmentação
-    if (promoData.targeting.type === 'specific') {
-      const includeTags = Array.from(document.getElementById('include-tags').selectedOptions).map(option => option.value);
-      const excludeTags = Array.from(document.getElementById('exclude-tags').selectedOptions).map(option => option.value);
-      const frequencyMin = document.getElementById('frequency-min').value;
-      const frequencyMax = document.getElementById('frequency-max').value;
-      const lastVisitDays = document.getElementById('last-visit-days').value;
+  async savePromotion() {
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
       
-      promoData.targeting.includeTags = includeTags;
-      promoData.targeting.excludeTags = excludeTags;
+      // Obter dados do formulário
+      const promoId = document.getElementById('promo-id')?.value;
+      const name = document.getElementById('promo-name')?.value;
+      const description = document.getElementById('promo-description')?.value;
+      const message = document.getElementById('message-text')?.value;
       
-      if (frequencyMin) promoData.targeting.frequencyMin = parseInt(frequencyMin);
-      if (frequencyMax) promoData.targeting.frequencyMax = parseInt(frequencyMax);
-      if (lastVisitDays) promoData.targeting.lastVisitDays = parseInt(lastVisitDays);
-    }
-    
-    // Se o agendamento for recorrente, adicionar configurações adicionais
-    if (promoData.schedule.type !== 'once') {
-      const endDate = document.getElementById('end-date').value;
-      if (endDate) promoData.schedule.endDate = endDate;
+      // Validar campos obrigatórios
+      if (!name || !message) {
+        this.showToast('Nome e mensagem são obrigatórios', 'warning');
+        return;
+      }
       
-      if (promoData.schedule.type === 'custom') {
-        const cronExpression = document.getElementById('cron-expression').value;
-        if (!cronExpression) {
-          alert('Por favor, insira uma expressão cron para o agendamento personalizado');
+      // Obter opções de segmentação
+      const targetingType = document.querySelector('input[name="targeting-type"]:checked')?.value || 'all';
+      let targetingOptions = {};
+      
+      if (targetingType === 'tag') {
+        targetingOptions.tag = document.getElementById('target-tag')?.value;
+        if (!targetingOptions.tag) {
+          this.showToast('Selecione uma tag para segmentação', 'warning');
           return;
         }
-        promoData.schedule.cronExpression = cronExpression;
+      } else if (targetingType === 'custom') {
+        targetingOptions.clientIds = document.getElementById('target-clients')?.value.split(',').map(id => id.trim());
+        if (!targetingOptions.clientIds || targetingOptions.clientIds.length === 0) {
+          this.showToast('Selecione pelo menos um cliente para segmentação personalizada', 'warning');
+          return;
+        }
+      }
+      
+      // Obter opções de agendamento
+      const scheduleType = document.getElementById('schedule-type')?.value || 'now';
+      let scheduleOptions = {};
+      
+      if (scheduleType === 'scheduled') {
+        const scheduleDate = document.getElementById('schedule-date')?.value;
+        const scheduleTime = document.getElementById('schedule-time')?.value;
+        
+        if (!scheduleDate || !scheduleTime) {
+          this.showToast('Data e hora de agendamento são obrigatórios', 'warning');
+          return;
+        }
+        
+        // Combinar data e hora
+        scheduleOptions.scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`);
+      }
+      
+      // Preparar dados da promoção
+      const promotionData = {
+        name,
+        description,
+        message,
+        targeting: {
+          type: targetingType,
+          ...targetingOptions
+        },
+        scheduling: {
+          type: scheduleType,
+          ...scheduleOptions
+        },
+        status: scheduleType === 'now' ? 'sending' : 'scheduled'
+      };
+      
+      // Desabilitar o botão de salvar para evitar cliques duplos
+      const saveButton = document.getElementById('save-promo-btn');
+      if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
+      }
+      
+      // Usar o módulo API centralizado
+      let result;
+      if (promoId) {
+        result = await API.promotions.update(promoId, promotionData);
+      } else {
+        result = await API.promotions.create(promotionData);
+      }
+      
+      // Fechar o modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('newPromoModal'));
+      if (modal) {
+        modal.hide();
+      }
+      
+      // Recarregar a lista de promoções
+      this.loadPromotions();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast(`Promoção ${promoId ? 'atualizada' : 'criada'} com sucesso`, 'success');
+      
+    } catch (error) {
+      console.error('Erro ao salvar promoção:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao salvar promoção: ${error.message || 'Erro desconhecido'}`, 'danger');
+    } finally {
+      // Restaurar o botão de salvar
+      const saveButton = document.getElementById('save-promo-btn');
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.innerHTML = 'Salvar e Enviar';
       }
     }
-    
-    console.log('Salvando promoção:', promoData);
-    
-    // Enviar para a API
-    fetch('/api/promotions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(promoData)
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao salvar promoção');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Fechar o modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newPromoModal'));
-        if (modal) modal.hide();
-        
-        // Recarregar a lista de promoções
-        this.loadPromotions();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Promoção salva com sucesso', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao salvar promoção:', error);
-        this.showToast('Erro ao salvar promoção', 'danger');
-      });
   },
   
-  saveAsDraft() {
-    // Similar à função savePromotion, mas salva como rascunho
-    const promoName = document.getElementById('promo-name').value;
-    
-    if (!promoName) {
-      alert('Por favor, informe pelo menos o nome da promoção');
+  async saveAsDraft() {
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Obter dados do formulário
+      const promoId = document.getElementById('promo-id')?.value;
+      const name = document.getElementById('promo-name')?.value || 'Rascunho sem título';
+      const description = document.getElementById('promo-description')?.value || '';
+      const message = document.getElementById('message-text')?.value || '';
+      
+      // Obter opções de segmentação
+      const targetingType = document.querySelector('input[name="targeting-type"]:checked')?.value || 'all';
+      let targetingOptions = {};
+      
+      if (targetingType === 'tag') {
+        targetingOptions.tag = document.getElementById('target-tag')?.value;
+      } else if (targetingType === 'custom') {
+        targetingOptions.clientIds = document.getElementById('target-clients')?.value.split(',').map(id => id.trim());
+      }
+      
+      // Obter opções de agendamento
+      const scheduleType = document.getElementById('schedule-type')?.value || 'now';
+      let scheduleOptions = {};
+      
+      if (scheduleType === 'scheduled') {
+        const scheduleDate = document.getElementById('schedule-date')?.value;
+        const scheduleTime = document.getElementById('schedule-time')?.value;
+        
+        if (scheduleDate && scheduleTime) {
+          scheduleOptions.scheduledFor = new Date(`${scheduleDate}T${scheduleTime}`);
+        }
+      }
+      
+      // Preparar dados da promoção
+      const promotionData = {
+        name,
+        description,
+        message,
+        targeting: {
+          type: targetingType,
+          ...targetingOptions
+        },
+        scheduling: {
+          type: scheduleType,
+          ...scheduleOptions
+        },
+        status: 'draft'
+      };
+      
+      // Desabilitar o botão de salvar para evitar cliques duplos
+      const saveDraftButton = document.getElementById('save-draft-btn');
+      if (saveDraftButton) {
+        saveDraftButton.disabled = true;
+        saveDraftButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Salvando...';
+      }
+      
+      // Usar o módulo API centralizado
+      let result;
+      if (promoId) {
+        result = await API.promotions.update(promoId, promotionData);
+      } else {
+        result = await API.promotions.create(promotionData);
+      }
+      
+      // Fechar o modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('newPromoModal'));
+      if (modal) {
+        modal.hide();
+      }
+      
+      // Recarregar a lista de promoções
+      this.loadPromotions();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast('Rascunho salvo com sucesso', 'success');
+      
+    } catch (error) {
+      console.error('Erro ao salvar rascunho:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao salvar rascunho: ${error.message || 'Erro desconhecido'}`, 'danger');
+    } finally {
+      // Restaurar o botão de salvar
+      const saveDraftButton = document.getElementById('save-draft-btn');
+      if (saveDraftButton) {
+        saveDraftButton.disabled = false;
+        saveDraftButton.innerHTML = 'Salvar Rascunho';
+      }
+    }
+  },
+
+  async viewPromotion(promoId) {
+    if (!promoId) {
+      this.showToast('ID da promoção não fornecido', 'warning');
       return;
     }
     
-    // Obter outros dados disponíveis no formulário
-    const promoDescription = document.getElementById('promo-description').value || '';
-    const messageText = document.getElementById('message-text').value || '';
-    
-    const promotionData = {
-      name: promoName,
-      description: promoDescription,
-      message: messageText,
-      status: 'draft'
-    };
-    
-    fetch('/api/promotions/draft', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(promotionData)
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao salvar rascunho');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Fechar o modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('newPromoModal'));
-        modal.hide();
-        
-        // Recarregar a lista de promoções
-        this.loadPromotions();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Rascunho salvo com sucesso', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao salvar rascunho:', error);
-        this.showToast('Erro ao salvar rascunho', 'danger');
-      });
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Obter dados da promoção
+      const promotion = await API.promotions.get(promoId);
+      
+      // Preencher o modal de visualização
+      document.getElementById('view-promo-name').textContent = promotion.name;
+      document.getElementById('view-promo-description').textContent = promotion.description || 'Sem descrição';
+      document.getElementById('view-promo-message').textContent = promotion.message;
+      document.getElementById('view-promo-status').innerHTML = `<span class="badge ${this.getStatusBadgeClass(promotion.status)}">${this.getStatusLabel(promotion.status)}</span>`;
+      document.getElementById('view-promo-created').textContent = this.formatDateTime(promotion.createdAt);
+      document.getElementById('view-promo-scheduled').textContent = promotion.scheduledFor ? this.formatDateTime(promotion.scheduledFor) : 'Não agendado';
+      document.getElementById('view-promo-sent').textContent = promotion.sentCount || 0;
+      
+      // Abrir o modal
+      const modal = new bootstrap.Modal(document.getElementById('viewPromoModal'));
+      modal.show();
+      
+    } catch (error) {
+      console.error('Erro ao visualizar promoção:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao carregar dados da promoção: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
   },
   
+  async editPromotion(promoId) {
+    if (!promoId) {
+      this.showToast('ID da promoção não fornecido', 'warning');
+      return;
+    }
+    
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Obter dados da promoção
+      const promotion = await API.promotions.get(promoId);
+      
+      // Verificar se a promoção está em estado editável
+      if (promotion.status !== 'draft') {
+        this.showToast('Apenas promoções em rascunho podem ser editadas', 'warning');
+        return;
+      }
+      
+      // Preencher o formulário
+      document.getElementById('promo-id').value = promotion._id;
+      document.getElementById('promo-name').value = promotion.name;
+      document.getElementById('promo-description').value = promotion.description || '';
+      document.getElementById('message-text').value = promotion.message;
+      
+      // Configurar opções de segmentação
+      if (promotion.targeting) {
+        const targetingType = promotion.targeting.type || 'all';
+        document.querySelector(`input[name="targeting-type"][value="${targetingType}"]`).checked = true;
+        
+        if (targetingType === 'tag' && promotion.targeting.tag) {
+          document.getElementById('target-tag').value = promotion.targeting.tag;
+        } else if (targetingType === 'custom' && promotion.targeting.clientIds) {
+          document.getElementById('target-clients').value = promotion.targeting.clientIds.join(', ');
+        }
+        
+        this.toggleTargetingOptions();
+      }
+      
+      // Configurar opções de agendamento
+      if (promotion.scheduling) {
+        const scheduleType = promotion.scheduling.type || 'now';
+        document.getElementById('schedule-type').value = scheduleType;
+        
+        if (scheduleType === 'scheduled' && promotion.scheduling.scheduledFor) {
+          const scheduledDate = new Date(promotion.scheduling.scheduledFor);
+          document.getElementById('schedule-date').value = scheduledDate.toISOString().split('T')[0];
+          document.getElementById('schedule-time').value = scheduledDate.toTimeString().slice(0, 5);
+        }
+        
+        this.toggleScheduleOptions();
+      }
+      
+      // Atualizar o título do modal
+      document.getElementById('promo-modal-title').innerHTML = '<i class="fas fa-edit me-2"></i>Editar Promoção';
+      
+      // Abrir o modal
+      const modal = new bootstrap.Modal(document.getElementById('newPromoModal'));
+      modal.show();
+      
+    } catch (error) {
+      console.error('Erro ao editar promoção:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao buscar dados da promoção: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
+  },
+  
+  async cancelPromotion(promoId) {
+    if (!promoId) {
+      this.showToast('ID da promoção não fornecido', 'warning');
+      return;
+    }
+    
+    if (!confirm('Tem certeza que deseja cancelar esta promoção?')) {
+      return;
+    }
+    
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Usar o módulo API centralizado
+      await API.promotions.cancel(promoId);
+      
+      // Recarregar a lista de promoções
+      this.loadPromotions();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast('Promoção cancelada com sucesso', 'success');
+    } catch (error) {
+      console.error('Erro ao cancelar promoção:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao cancelar promoção: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
+  },
+  
+  async deletePromotion(id) {
+    if (!id) {
+      this.showToast('ID da promoção não fornecido', 'warning');
+      return;
+    }
+    
+    if (!confirm('Tem certeza que deseja excluir esta promoção?')) {
+      return;
+    }
+    
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Usar o módulo API centralizado
+      await API.promotions.delete(id);
+      
+      // Recarregar a lista de promoções
+      this.loadPromotions();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast('Promoção excluída com sucesso', 'success');
+    } catch (error) {
+      console.error('Erro ao excluir promoção:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao excluir promoção: ${error.message || 'Erro desconhecido'}`, 'danger');
+    }
+  },
+
+  async sendTestPromotion() {
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      // Obter dados do formulário
+      const message = document.getElementById('message-text')?.value;
+      
+      if (!message) {
+        this.showToast('É necessário preencher a mensagem para enviar um teste', 'warning');
+        return;
+      }
+      
+      // Solicitar número para teste
+      const testPhone = prompt('Digite o número de telefone para enviar o teste (com DDD):');
+      if (!testPhone) return;
+      
+      // Validar formato do telefone
+      if (!/^\d{10,11}$/.test(testPhone.replace(/\D/g, ''))) {
+        this.showToast('Número de telefone inválido. Use o formato com DDD (ex: 11999999999)', 'warning');
+        return;
+      }
+      
+      // Desabilitar o botão
+      const testButton = document.getElementById('send-test-btn');
+      if (testButton) {
+        testButton.disabled = true;
+        testButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando...';
+      }
+      
+      // Enviar mensagem de teste
+      await API.promotions.sendTest({
+        phone: testPhone.replace(/\D/g, ''),
+        message
+      });
+      
+      // Mostrar mensagem de sucesso
+      this.showToast('Mensagem de teste enviada com sucesso', 'success');
+      
+    } catch (error) {
+      console.error('Erro ao enviar teste:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao enviar teste: ${error.message || 'Erro desconhecido'}`, 'danger');
+    } finally {
+      // Restaurar o botão
+      const testButton = document.getElementById('send-test-btn');
+      if (testButton) {
+        testButton.disabled = false;
+        testButton.innerHTML = 'Enviar Teste';
+      }
+    }
+  },
+  
+  async sendPromotionNow() {
+    try {
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        Auth.logout();
+        return;
+      }
+      
+      const promoId = document.getElementById('promo-id')?.value;
+      if (!promoId) {
+        // Se não tiver ID, salvar primeiro como nova promoção
+        await this.savePromotion();
+        return;
+      }
+      
+      if (!confirm('Tem certeza que deseja enviar esta promoção agora para todos os destinatários?')) {
+        return;
+      }
+      
+      // Desabilitar o botão
+      const sendButton = document.getElementById('send-promo-now-btn');
+      if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando...';
+      }
+      
+      // Enviar promoção imediatamente
+      await API.promotions.sendNow(promoId);
+      
+      // Fechar o modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('newPromoModal'));
+      if (modal) {
+        modal.hide();
+      }
+      
+      // Recarregar a lista de promoções
+      this.loadPromotions();
+      
+      // Mostrar mensagem de sucesso
+      this.showToast('Promoção enviada com sucesso', 'success');
+      
+    } catch (error) {
+      console.error('Erro ao enviar promoção:', error);
+      
+      // Verificar se é um erro de autenticação
+      if (error.message && error.message.includes('Sessão expirada')) {
+        Auth.logout();
+        return;
+      }
+      
+      this.showToast(`Erro ao enviar promoção: ${error.message || 'Erro desconhecido'}`, 'danger');
+    } finally {
+      // Restaurar o botão
+      const sendButton = document.getElementById('send-promo-now-btn');
+      if (sendButton) {
+        sendButton.disabled = false;
+        sendButton.innerHTML = 'Enviar Agora';
+      }
+    }
+  },
+
   toggleTargetingOptions() {
     const targetingType = document.querySelector('input[name="targeting-type"]:checked').value;
     const targetingOptions = document.getElementById('targeting-options');
@@ -315,94 +733,6 @@ const PromotionsManager = {
       endDateGroup.classList.remove('d-none');
       sendTimeGroup.classList.remove('d-none');
       cronExpressionGroup.classList.add('d-none');
-    }
-  },
-  
-  viewPromotion(promoId) {
-    // Redirecionar para página de detalhes da promoção ou abrir um modal
-    fetch(`/api/promotions/${promoId}`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao buscar detalhes da promoção');
-        }
-        return response.json();
-      })
-      .then(promotion => {
-        // Aqui você pode implementar a lógica para exibir os detalhes
-        // Por exemplo, abrindo um modal com os detalhes da promoção
-        alert(`Detalhes da promoção "${promotion.name}" serão exibidos aqui.`);
-      })
-      .catch(error => {
-        console.error('Erro ao visualizar promoção:', error);
-        this.showToast('Erro ao buscar detalhes da promoção', 'danger');
-      });
-  },
-  
-  editPromotion(promoId) {
-    // Semelhante à função anterior, mas para edição
-    fetch(`/api/promotions/${promoId}`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao buscar dados da promoção');
-        }
-        return response.json();
-      })
-      .then(promotion => {
-        // Abre o modal de edição e preenche os campos
-        // (Você precisaria ter um modal de edição separado ou ajustar o existente)
-        
-        // Exemplo básico:
-        document.getElementById('promo-name').value = promotion.name;
-        document.getElementById('promo-description').value = promotion.description;
-        document.getElementById('message-text').value = promotion.message;
-        
-        // Abrir o modal
-        const modal = new bootstrap.Modal(document.getElementById('newPromoModal'));
-        modal.show();
-      })
-      .catch(error => {
-        console.error('Erro ao editar promoção:', error);
-        this.showToast('Erro ao buscar dados da promoção', 'danger');
-      });
-  },
-  
-  cancelPromotion(promoId) {
-    if (!confirm('Tem certeza que deseja cancelar esta promoção?')) return;
-    
-    fetch(`/api/promotions/${promoId}/cancel`, {
-      method: 'POST'
-    })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Erro ao cancelar promoção');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Recarregar a lista de promoções
-        this.loadPromotions();
-        
-        // Mostrar mensagem de sucesso
-        this.showToast('Promoção cancelada com sucesso', 'success');
-      })
-      .catch(error => {
-        console.error('Erro ao cancelar promoção:', error);
-        this.showToast('Erro ao cancelar promoção', 'danger');
-      });
-  },
-  
-  async deletePromotion(id) {
-    if (!confirm('Tem certeza que deseja excluir esta promoção?')) {
-      return;
-    }
-    
-    try {
-      await API.delete(`/promotions/${id}`);
-      this.showToast('Promoção excluída com sucesso', 'success');
-      this.loadPromotions();
-    } catch (error) {
-      console.error('Erro ao excluir promoção:', error);
-      this.showToast('Erro ao excluir promoção', 'danger');
     }
   },
   
@@ -463,21 +793,6 @@ const PromotionsManager = {
     
     // Caso contrário, use uma implementação simples
     alert(message);
-  },
-  
-  sendTestPromotion() {
-    // Implementação para enviar uma promoção de teste
-    alert('Enviar promoção de teste');
-  },
-  
-  editPromotion() {
-    // Implementação para editar uma promoção
-    alert('Editar promoção');
-  },
-  
-  sendPromotionNow() {
-    // Implementação para enviar uma promoção agora
-    alert('Enviar promoção agora');
   },
   
   resetPromoForm() {

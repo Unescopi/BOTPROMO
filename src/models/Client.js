@@ -91,7 +91,7 @@ clientSchema.pre('save', function(next) {
 });
 
 // Índices
-clientSchema.index({ phone: 1 });
+// Removendo o índice duplicado de phone, pois já está definido como unique: true no schema
 clientSchema.index({ tags: 1 });
 clientSchema.index({ status: 1 });
 
