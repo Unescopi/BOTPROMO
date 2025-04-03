@@ -34,6 +34,13 @@ app.use(fileUpload({
 // Servindo arquivos estáticos
 app.use(express.static(path.join(__dirname, 'src/public')));
 
+// Rota específica para servir páginas HTML
+app.get('/pages/:page', (req, res) => {
+  const pageName = req.params.page;
+  const filePath = path.join(__dirname, 'src/public/pages', pageName);
+  res.sendFile(filePath);
+});
+
 // Conectando ao MongoDB
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {

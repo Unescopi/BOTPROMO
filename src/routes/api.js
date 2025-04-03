@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const messageController = require('../controllers/messageController');
+const webhookController = require('../controllers/webhookController');
 
 // Rota de status
 router.get('/status', (req, res) => {
@@ -14,6 +15,9 @@ router.get('/status', (req, res) => {
     version: '1.0.0'
   });
 });
+
+// Webhook da Evolution API
+router.post('/webhook', webhookController.handleWebhook);
 
 // Rotas de conexão com WhatsApp
 router.get('/whatsapp/status', messageController.checkConnection);
