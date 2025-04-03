@@ -29,6 +29,9 @@ module.exports = {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
   
+  // Chave JWT para uso direto
+  jwtSecret: process.env.JWT_SECRET || 'sua_chave_jwt_segura',
+  
   // Configurações de upload
   upload: {
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024, // 5MB default

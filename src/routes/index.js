@@ -20,7 +20,9 @@ router.use('/api/messages', messageRoutes);
 router.use('/api/promotions', promotionRoutes);
 router.use('/api/auth', authRoutes);
 
-// Rota específica para upload de mídia
+// Rotas para gerenciamento de mídia
 router.post('/api/media/upload', auth.verifyToken, mediaController.uploadMedia);
+router.get('/api/media/list', auth.verifyToken, mediaController.listMedia);
+router.delete('/api/media/:fileName', auth.verifyToken, mediaController.deleteMedia);
 
 module.exports = router;

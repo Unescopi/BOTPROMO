@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const config = require('../config/config');
 
 const userSchema = new mongoose.Schema({
@@ -78,9 +79,9 @@ userSchema.methods.generateAuthToken = function() {
       email: this.email,
       role: this.role
     },
-    config.jwt.secret,
+    config.jwtSecret,
     {
-      expiresIn: config.jwt.expiresIn
+      expiresIn: '7d'
     }
   );
 };
