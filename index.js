@@ -145,6 +145,28 @@ app.get('/reset-password', (req, res) => {
   res.sendFile(path.join(__dirname, 'src/public/reset-password.html'));
 });
 
+// Adicione este middleware após registrar as rotas da API
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint não encontrado'
+  });
+});
+
+// Adicione este middleware para tratar erros na API
+app.use((err, req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.error('Erro na API:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  } else {
+    next(err);
+  }
+});
+
 // Inicializando o servidor
 app.listen(PORT, () => {
   logger.info(`Servidor rodando na porta ${PORT}`);

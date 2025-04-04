@@ -13,16 +13,20 @@ const authRoutes = require('./auth');
 const mediaController = require('../controllers/mediaController');
 const auth = require('../middleware/auth');
 
-// Configurando as rotas - adicionando o prefixo 'api' para todas
-router.use('/api', apiRoutes);
-router.use('/api/clients', clientRoutes);
-router.use('/api/messages', messageRoutes);
-router.use('/api/promotions', promotionRoutes);
-router.use('/api/auth', authRoutes);
+// Configurando as rotas - modificando a ordem para evitar sobreposição
+// Primeiro registramos as rotas específicas
+router.use('/auth', authRoutes); // Removido o prefixo 'api' pois já estamos em '/api'
+router.use('/clients', clientRoutes);
+router.use('/messages', messageRoutes);
+router.use('/promotions', promotionRoutes);
 
 // Rotas para gerenciamento de mídia
-router.post('/api/media/upload', auth.verifyToken, mediaController.uploadMedia);
-router.get('/api/media/list', auth.verifyToken, mediaController.listMedia);
-router.delete('/api/media/:fileName', auth.verifyToken, mediaController.deleteMedia);
+router.post('/media/upload', auth.verifyToken, mediaController.uploadMedia);
+router.get('/media/list', auth.verifyToken, mediaController.listMedia);
+router.delete('/media/:fileName', auth.verifyToken, mediaController.deleteMedia);
+
+// Por último, registramos as rotas gerais da API
+// Isso evita que elas interfiram com as rotas específicas
+router.use('/', apiRoutes);
 
 module.exports = router;

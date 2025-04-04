@@ -63,6 +63,8 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     console.log('Tentativa de login recebida:', req.body);
+    console.log('Headers da requisição:', req.headers);
+    
     const { email, password } = req.body;
 
     // Validação básica
@@ -107,6 +109,10 @@ exports.login = async (req, res) => {
     await user.save({ validateBeforeSave: false });
 
     console.log('Login bem-sucedido para:', email);
+    
+    // Definindo explicitamente o tipo de conteúdo como JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     res.status(200).json({
       success: true,
       token,
