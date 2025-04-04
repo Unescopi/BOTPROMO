@@ -1,0 +1,21 @@
+===============================================
+CREDENCIAIS DE ADMINISTRADOR - BOT DE PROMOÇÕES
+===============================================
+
+Para acessar o sistema como administrador, utilize as seguintes credenciais:
+
+Email: admin@cafeteriabot.com
+Senha: Admin@2025
+
+Estas são as credenciais padrão configuradas no sistema.
+Recomendamos alterar a senha após o primeiro acesso.
+
+===============================================
+
+Para criar um usuário administrador no sistema, você pode:
+
+1. Usar a interface de administração após fazer login
+2. Executar o script de criação de usuário no servidor:
+   node scripts/createAdminUser.js
+
+===============================================
