@@ -200,30 +200,45 @@
       const toast = new bootstrap.Toast(notificationToast);
       
       // Manipulador de envio do formulário de login
-      loginForm.addEventListener('submit', async function(e) {
+      loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        // Obter os dados do formulário
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const rememberMe = document.getElementById('remember-me').checked;
         
         try {
-          // Utiliza o módulo Auth para fazer login
-          await Auth.login(email, password);
+          // Fazer a requisição para a API
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+          });
           
-          // Se "lembrar-me" estiver marcado, armazena o email
+          // Verificar se a resposta foi bem-sucedida
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Erro ao fazer login');
+          }
+          
+          // Processar a resposta
+          const data = await response.json();
+          
+          // Salvar o token no localStorage
+          localStorage.setItem('authToken', data.token);
+          
+          // Salvar o email se "lembrar-me" estiver marcado
           if (rememberMe) {
             localStorage.setItem('email', email);
           } else {
             localStorage.removeItem('email');
           }
           
-          // Verifica se há um redirecionamento específico
-          const urlParams = new URLSearchParams(window.location.search);
-          const redirectUrl = urlParams.get('redirect') || '/';
-          
-          // Redireciona para a página solicitada ou para a página principal
-          window.location.href = redirectUrl;
+          // Redirecionar para a página principal
+          window.location.href = '/';
         } catch (error) {
           console.error('Erro ao fazer login:', error);
           showNotification(error.message || 'Erro ao fazer login', 'danger');

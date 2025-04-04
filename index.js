@@ -56,6 +56,12 @@ app.use(fileUpload({
   createParentPath: true
 }));
 
+// Middleware para logging de requisições
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.url}`);
+  next();
+});
+
 // Servindo arquivos estáticos
 app.use(express.static(path.join(__dirname, 'src/public')));
 
@@ -66,18 +72,44 @@ app.get('/pages/:page', (req, res) => {
   res.sendFile(filePath);
 });
 
-// Conectando ao MongoDB
+// Conectar ao MongoDB
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     logger.info('Conectado ao MongoDB com sucesso!');
+    logger.info(`URI do MongoDB: ${process.env.MONGODB_URI.replace(/mongodb:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@')}`);
   })
   .catch(err => {
     logger.error(`Erro ao conectar ao MongoDB: ${err.message}`);
-    process.exit(1);
   });
 
 // Rotas da API
 app.use('/api', routes);
+console.log('Rotas API registradas');
+
+// Adicione este código para listar todas as rotas registradas
+app.get('/api/routes', (req, res) => {
+  const routesList = [];
+  app._router.stack.forEach(middleware => {
+    if (middleware.route) {
+      // Rotas registradas diretamente
+      routesList.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      // Rotas registradas via router
+      middleware.handle.stack.forEach(handler => {
+        if (handler.route) {
+          routesList.push({
+            path: handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+  res.json(routesList);
+});
 
 // Adiciona uma rota de fallback para lidar com navegação direta para rotas SPA
 app.get('/:page', (req, res) => {

@@ -62,51 +62,51 @@ exports.register = async (req, res) => {
  */
 exports.login = async (req, res) => {
   try {
+    console.log('Tentativa de login recebida:', req.body);
     const { email, password } = req.body;
 
-    // Valida email e senha
+    // Validação básica
     if (!email || !password) {
+      console.log('Email ou senha não fornecidos');
       return res.status(400).json({
         success: false,
         message: 'Por favor, forneça email e senha'
       });
     }
 
-    // Busca o usuário e inclui a senha para verificação
+    // Busca o usuário pelo email
+    console.log('Buscando usuário com email:', email);
     const user = await User.findOne({ email }).select('+password');
 
     // Verifica se o usuário existe
     if (!user) {
+      console.log('Usuário não encontrado');
       return res.status(401).json({
         success: false,
         message: 'Credenciais inválidas'
       });
     }
 
-    // Verifica se o usuário está ativo
-    if (!user.active) {
-      return res.status(401).json({
-        success: false,
-        message: 'Conta desativada. Entre em contato com o administrador'
-      });
-    }
-
+    console.log('Usuário encontrado, verificando senha');
     // Verifica se a senha está correta
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
+      console.log('Senha incorreta');
       return res.status(401).json({
         success: false,
         message: 'Credenciais inválidas'
       });
     }
+
+    console.log('Senha correta, gerando token');
+    // Gera token JWT
+    const token = user.generateAuthToken();
 
     // Atualiza a data do último login
     user.lastLogin = Date.now();
     await user.save({ validateBeforeSave: false });
 
-    // Gera token JWT
-    const token = user.generateAuthToken();
-
+    console.log('Login bem-sucedido para:', email);
     res.status(200).json({
       success: true,
       token,
@@ -118,7 +118,8 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error(`Erro ao fazer login: ${error.message}`);
+    console.error('Erro detalhado no login:', error);
+    logger.error(`Erro no login: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Erro ao fazer login'
