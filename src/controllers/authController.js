@@ -64,6 +64,8 @@ exports.login = async (req, res) => {
   try {
     console.log('Tentativa de login recebida:', req.body);
     console.log('Headers da requisição:', req.headers);
+    console.log('URL da requisição:', req.originalUrl);
+    console.log('Método da requisição:', req.method);
     
     const { email, password } = req.body;
 

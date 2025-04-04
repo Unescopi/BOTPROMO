@@ -9,6 +9,7 @@ const authMiddleware = require('../middleware/auth');
 // Rotas públicas
 router.post('/register', authController.register);
 console.log('Rota de login registrada: POST /api/auth/login');
+console.log('Registrando rota de login: POST /login');
 router.post('/login', authController.login);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password/:token', authController.resetPassword);

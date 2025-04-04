@@ -15,41 +15,51 @@ const adminUser = {
   role: 'admin'
 };
 
-// Usar uma conexão local para desenvolvimento
-const localMongoURI = 'mongodb://localhost:27017/cafeteria-promo-bot';
+console.log('Iniciando script para criar usuário administrador...');
+console.log(`Tentando conectar ao MongoDB: ${process.env.MONGODB_URI}`);
 
 // Conectar ao MongoDB
-mongoose.connect(localMongoURI)
+mongoose.connect(process.env.MONGODB_URI)
   .then(async () => {
-    logger.info('Conectado ao MongoDB com sucesso!');
+    console.log('Conectado ao MongoDB com sucesso!');
     
     try {
-      // Verificar se o usuário já existe
+      // Verifica se já existe um usuário com este email
       const existingUser = await User.findOne({ email: adminUser.email });
       
       if (existingUser) {
-        logger.info(`Usuário administrador já existe com o email: ${adminUser.email}`);
-        logger.info('Você pode fazer login com as credenciais existentes');
-        process.exit(0);
+        console.log(`Usuário com email ${adminUser.email} já existe. Atualizando...`);
+        
+        // Atualiza o usuário existente
+        existingUser.name = adminUser.name;
+        existingUser.role = adminUser.role;
+        existingUser.active = true;
+        
+        // Se uma nova senha foi fornecida, atualiza a senha
+        if (adminUser.password) {
+          existingUser.password = adminUser.password;
+        }
+        
+        await existingUser.save();
+        console.log('Usuário administrador atualizado com sucesso!');
+      } else {
+        // Cria um novo usuário administrador
+        const user = await User.create(adminUser);
+        console.log(`Usuário administrador criado com sucesso! ID: ${user._id}`);
       }
       
-      // Criar o usuário administrador
-      const user = await User.create(adminUser);
-      
-      logger.info('Usuário administrador criado com sucesso!');
-      logger.info('-------------------------------------');
-      logger.info('Credenciais de acesso:');
-      logger.info(`Email: ${adminUser.email}`);
-      logger.info(`Senha: ${adminUser.password}`);
-      logger.info('-------------------------------------');
+      // Lista todos os usuários para verificação
+      const users = await User.find({}).select('-password');
+      console.log('Usuários no banco de dados:');
+      console.log(users);
       
       process.exit(0);
     } catch (error) {
-      logger.error(`Erro ao criar usuário administrador: ${error.message}`);
+      console.error(`Erro ao criar usuário administrador: ${error.message}`);
       process.exit(1);
     }
   })
   .catch(err => {
-    logger.error(`Erro ao conectar ao MongoDB: ${err.message}`);
+    console.error(`Erro ao conectar ao MongoDB: ${err.message}`);
     process.exit(1);
   });

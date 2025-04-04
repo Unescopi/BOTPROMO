@@ -202,13 +202,17 @@
       // Manipulador de envio do formulário de login
       loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        console.log('Formulário de login enviado');
         
         // Obter os dados do formulário
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const rememberMe = document.getElementById('remember-me').checked;
         
+        console.log('Dados do formulário:', { email, rememberMe });
+        
         try {
+          console.log('Enviando requisição para /api/auth/login');
           // Fazer a requisição para a API
           const response = await fetch('/api/auth/login', {
             method: 'POST',
@@ -218,17 +222,41 @@
             body: JSON.stringify({ email, password })
           });
           
+          console.log('Resposta recebida:', response.status, response.statusText);
+          
           // Verificar se a resposta foi bem-sucedida
           if (!response.ok) {
-            const errorData = await response.json();
+            const errorText = await response.text();
+            console.error('Resposta de erro completa:', errorText);
+            
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (e) {
+              console.error('Erro ao parsear resposta JSON:', e);
+              throw new Error('Resposta inválida do servidor');
+            }
+            
             throw new Error(errorData.message || 'Erro ao fazer login');
           }
           
           // Processar a resposta
-          const data = await response.json();
+          const responseText = await response.text();
+          console.log('Resposta de texto completa:', responseText);
+          
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (e) {
+            console.error('Erro ao parsear resposta JSON:', e);
+            throw new Error('Resposta inválida do servidor');
+          }
+          
+          console.log('Dados da resposta:', data);
           
           // Salvar o token no localStorage
           localStorage.setItem('authToken', data.token);
+          console.log('Token salvo no localStorage');
           
           // Salvar o email se "lembrar-me" estiver marcado
           if (rememberMe) {
@@ -237,6 +265,7 @@
             localStorage.removeItem('email');
           }
           
+          console.log('Redirecionando para a página principal');
           // Redirecionar para a página principal
           window.location.href = '/';
         } catch (error) {

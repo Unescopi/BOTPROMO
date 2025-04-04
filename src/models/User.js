@@ -65,25 +65,35 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// Método para verificar se a senha está correta
+// Método para comparar senha
 userSchema.methods.matchPassword = async function(enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+  try {
+    return await bcrypt.compare(enteredPassword, this.password);
+  } catch (error) {
+    console.error('Erro ao comparar senhas:', error);
+    return false;
+  }
 };
 
 // Método para gerar token JWT
 userSchema.methods.generateAuthToken = function() {
-  return jwt.sign(
-    { 
-      id: this._id,
-      name: this.name,
-      email: this.email,
-      role: this.role
-    },
-    config.jwtSecret,
-    {
-      expiresIn: '7d'
-    }
-  );
+  try {
+    return jwt.sign(
+      { 
+        id: this._id,
+        name: this.name,
+        email: this.email,
+        role: this.role
+      },
+      process.env.JWT_SECRET || 'secret-jwt-cafeteria-bot-2025',
+      {
+        expiresIn: process.env.JWT_EXPIRATION || '7d'
+      }
+    );
+  } catch (error) {
+    console.error('Erro ao gerar token JWT:', error);
+    throw error;
+  }
 };
 
 // Método para gerar token de redefinição de senha
