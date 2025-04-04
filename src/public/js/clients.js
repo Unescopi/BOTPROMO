@@ -92,88 +92,40 @@ const ClientsManager = {
   },
   
   async loadClients() {
-    const tableBody = document.querySelector('.clients-table tbody');
-    if (!tableBody) return;
-    
     try {
-      // Mostrar o indicador de carregamento
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="8" class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Carregando...</span>
-            </div>
-          </td>
-        </tr>
-      `;
+      console.log('=== INÍCIO: loadClients ===');
       
-      // Obter filtros
-      const searchTerm = document.getElementById('client-search')?.value || '';
-      const tagFilter = document.getElementById('tag-filter')?.value || '';
-      const statusFilter = document.getElementById('status-filter')?.value || '';
-      
-      // Construir endpoint com parâmetros de filtro
-      let endpoint = '/clients';
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (tagFilter) params.append('tag', tagFilter);
-      if (statusFilter) params.append('status', statusFilter);
-      
-      if (params.toString()) {
-        endpoint += `?${params.toString()}`;
+      // Mostrar indicador de carregamento
+      const tableBody = document.getElementById('clients-table-body');
+      if (tableBody) {
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Carregando clientes...</td></tr>';
       }
       
-      // Usar o módulo API centralizado
-      const clients = await API.get(endpoint);
-      
-      if (clients.length === 0) {
-        tableBody.innerHTML = `
-          <tr>
-            <td colspan="8" class="text-center py-4">
-              <div class="alert alert-info mb-0">
-                <i class="fas fa-info-circle me-2"></i>Nenhum cliente encontrado
-              </div>
-            </td>
-          </tr>
-        `;
+      // Verificar se o usuário está autenticado
+      if (!Auth.isAuthenticated()) {
+        console.log('Usuário não autenticado, redirecionando para login');
+        Auth.logout();
         return;
       }
       
-      // Renderizar a tabela de clientes
-      tableBody.innerHTML = clients.map((client, index) => `
-        <tr>
-          <td>
-            <div class="form-check">
-              <input class="form-check-input client-checkbox" type="checkbox" data-id="${client._id}" onchange="ClientsManager.updateSelectedCount()">
-            </div>
-          </td>
-          <td>${index + 1}</td>
-          <td>${client.name}</td>
-          <td>${client.phone}</td>
-          <td>
-            <span class="badge ${this.getStatusBadgeClass(client.status)}">
-              ${this.getStatusLabel(client.status)}
-            </span>
-          </td>
-          <td>
-            ${client.tags?.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('') || ''}
-          </td>
-          <td>${this.formatDate(client.createdAt)}</td>
-          <td>
-            <div class="btn-group btn-group-sm">
-              <button class="btn btn-outline-primary" onclick="ClientsManager.editClient('${client._id}')">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button class="btn btn-outline-danger" onclick="ClientsManager.deleteClient('${client._id}')">
-                <i class="fas fa-trash"></i>
-              </button>
-            </div>
-          </td>
-        </tr>
-      `).join('');
+      // Usar o módulo API centralizado para buscar clientes
+      console.log('Buscando clientes da API');
+      const clients = await API.clients.getAll();
+      console.log('Clientes recebidos da API:', clients);
       
+      // Atualizar a tabela com os clientes
+      this.renderClientsTable(clients);
+      
+      // Atualizar contadores
+      this.updateCounters(clients);
+      
+      // Atualizar filtros de tags
+      this.updateTagFilters(clients);
+      
+      console.log('=== FIM: loadClients ===');
     } catch (error) {
-      console.error('Erro ao carregar clientes:', error);
+      console.error('=== ERRO: loadClients ===');
+      console.error('Mensagem de erro:', error);
       
       // Verificar se é um erro de autenticação
       if (error.message && error.message.includes('Sessão expirada')) {
@@ -181,23 +133,22 @@ const ClientsManager = {
         return;
       }
       
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="8" class="text-center py-4">
-            <div class="alert alert-danger mb-0">
-              <i class="fas fa-exclamation-triangle me-2"></i>
-              Erro ao carregar clientes: ${error.message || 'Erro desconhecido'}
-            </div>
-          </td>
-        </tr>
-      `;
+      const tableBody = document.getElementById('clients-table-body');
+      if (tableBody) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">
+          Erro ao carregar clientes: ${error.message || 'Erro desconhecido'}
+        </td></tr>`;
+      }
     }
   },
   
   async saveClient() {
     try {
+      console.log('=== INÍCIO: saveClient ===');
+      
       // Verificar se o usuário está autenticado
       if (!Auth.isAuthenticated()) {
+        console.log('Usuário não autenticado, redirecionando para login');
         Auth.logout();
         return;
       }
@@ -212,7 +163,10 @@ const ClientsManager = {
         .map(tag => tag.trim())
         .filter(tag => tag);
       
+      console.log('Dados do formulário:', { clientId, name, phone, email, status, tags });
+      
       if (!name || !phone) {
+        console.log('Validação falhou: Nome e telefone são obrigatórios');
         this.showToast('Nome e telefone são obrigatórios', 'warning');
         return;
       }
@@ -233,13 +187,20 @@ const ClientsManager = {
         tags
       };
       
+      console.log('Dados do cliente a serem enviados:', clientData);
+      
       // Usar o módulo API centralizado
+      let response;
       if (clientId) {
         // Atualizar cliente existente
-        await API.clients.update(clientId, clientData);
+        console.log('Atualizando cliente existente, ID:', clientId);
+        response = await API.clients.update(clientId, clientData);
+        console.log('Resposta da atualização:', response);
       } else {
         // Criar novo cliente
-        await API.clients.create(clientData);
+        console.log('Criando novo cliente');
+        response = await API.clients.create(clientData);
+        console.log('Resposta da criação:', response);
       }
       
       // Fechar o modal
@@ -252,13 +213,17 @@ const ClientsManager = {
       this.resetClientForm();
       
       // Recarregar a lista de clientes
-      this.loadClients();
+      console.log('Recarregando lista de clientes');
+      await this.loadClients();
+      console.log('Lista de clientes recarregada');
       
       // Mostrar mensagem de sucesso
       this.showToast(`Cliente ${clientId ? 'atualizado' : 'criado'} com sucesso`, 'success');
       
+      console.log('=== FIM: saveClient ===');
     } catch (error) {
-      console.error('Erro ao salvar cliente:', error);
+      console.error('=== ERRO: saveClient ===');
+      console.error('Mensagem de erro:', error);
       
       // Verificar se é um erro de autenticação
       if (error.message && error.message.includes('Sessão expirada')) {

@@ -87,6 +87,9 @@ clientSchema.pre('save', function(next) {
     this.phone = validator.formatPhone(this.phone);
   }
   
+  console.log('=== PRE-SAVE: Cliente ===');
+  console.log('Dados do cliente a serem salvos:', JSON.stringify(this.toObject(), null, 2));
+  
   next();
 });
 
@@ -94,6 +97,13 @@ clientSchema.pre('save', function(next) {
 // Removendo o índice duplicado de phone, pois já está definido como unique: true no schema
 clientSchema.index({ tags: 1 });
 clientSchema.index({ status: 1 });
+
+// Adicionar um middleware post-save para logar os dados após salvar
+clientSchema.post('save', function(doc) {
+  console.log('=== POST-SAVE: Cliente ===');
+  console.log('Cliente salvo com sucesso. ID:', doc._id);
+  console.log('Dados do cliente salvos:', JSON.stringify(doc.toObject(), null, 2));
+});
 
 const Client = mongoose.model('Client', clientSchema);
 

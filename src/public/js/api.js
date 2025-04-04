@@ -196,8 +196,17 @@ const API = {
       return API.get(`/clients/${id}`);
     },
     
-    async create(client) {
-      return API.post('/clients', client);
+    async create(data) {
+      console.log('API.clients.create - Dados:', data);
+      return API.post('/clients', data)
+        .then(response => {
+          console.log('API.clients.create - Resposta:', response);
+          return response;
+        })
+        .catch(error => {
+          console.error('API.clients.create - Erro:', error);
+          throw error;
+        });
     },
     
     async update(id, client) {

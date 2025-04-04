@@ -58,7 +58,7 @@ app.use(fileUpload({
 
 // Middleware para logging de requisições
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
@@ -75,16 +75,26 @@ app.get('/pages/:page', (req, res) => {
 // Conectar ao MongoDB
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
-    logger.info('Conectado ao MongoDB com sucesso!');
-    logger.info(`URI do MongoDB: ${process.env.MONGODB_URI.replace(/mongodb:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@')}`);
+    console.log('=== CONEXÃO COM MONGODB ===');
+    console.log('Conectado ao MongoDB com sucesso!');
+    console.log(`URI do MongoDB: ${process.env.MONGODB_URI.replace(/mongodb:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@')}`);
+    
+    // Verificar se podemos acessar a coleção de clientes
+    const Client = require('./src/models/Client');
+    return Client.countDocuments();
+  })
+  .then(count => {
+    console.log(`Número de clientes no banco de dados: ${count}`);
   })
   .catch(err => {
-    logger.error(`Erro ao conectar ao MongoDB: ${err.message}`);
+    console.error('=== ERRO NA CONEXÃO COM MONGODB ===');
+    console.error('Mensagem de erro:', err.message);
+    console.error('Stack trace:', err.stack);
   });
 
 // Rotas da API
 app.use('/api', routes);
-console.log('Rotas API registradas');
+console.log('Rotas da API registradas em /api');
 
 // Adicione este código para listar todas as rotas registradas
 app.get('/api/routes', (req, res) => {

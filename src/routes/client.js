@@ -6,30 +6,27 @@ const router = express.Router();
 const clientController = require('../controllers/clientController');
 const auth = require('../middleware/auth');
 
-// Aplicar middleware de autenticação em todas as rotas
-router.use(auth.verifyToken);
+// Log para verificar se as rotas estão sendo registradas
+console.log('Registrando rotas de clientes:');
+console.log('POST /clients - Criar cliente');
+console.log('GET /clients - Listar clientes');
+console.log('GET /clients/:id - Obter cliente por ID');
+console.log('PUT /clients/:id - Atualizar cliente');
+console.log('DELETE /clients/:id - Excluir cliente');
 
-// Rota para importação de clientes via CSV
-router.post('/import', clientController.importClients);
+// Rotas protegidas
+router.post('/', auth.verifyToken, clientController.createClient);
+router.get('/', auth.verifyToken, clientController.getClients);
+router.get('/:id', auth.verifyToken, clientController.getClient);
+router.put('/:id', auth.verifyToken, clientController.updateClient);
+router.delete('/:id', auth.verifyToken, clientController.deleteClient);
 
-// Rota para exportação de clientes para CSV
-router.get('/export', clientController.exportClients);
-
-// Rotas para gerenciamento de tags
-router.get('/tags', clientController.getTags);
-router.post('/tags/bulk', clientController.addTagToMany);
-
-// Rota para estatísticas
-router.get('/stats', clientController.getStats);
-
-// Rota para operações em lote
-router.post('/batch', clientController.batchOperation);
-
-// Rotas CRUD básicas
-router.get('/', clientController.getClients);
-router.post('/', clientController.createClient);
-router.get('/:id', clientController.getClient);
-router.put('/:id', clientController.updateClient);
-router.delete('/:id', clientController.deleteClient);
+// Rotas adicionais
+router.post('/batch', auth.verifyToken, clientController.batchOperation);
+router.post('/import', auth.verifyToken, clientController.importClients);
+router.get('/export', auth.verifyToken, clientController.exportClients);
+router.get('/tags', auth.verifyToken, clientController.getTags);
+router.post('/tags/bulk', auth.verifyToken, clientController.addTagToMany);
+router.get('/stats', auth.verifyToken, clientController.getStats);
 
 module.exports = router;

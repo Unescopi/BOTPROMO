@@ -29,4 +29,11 @@ router.delete('/media/:fileName', auth.verifyToken, mediaController.deleteMedia)
 // Isso evita que elas interfiram com as rotas específicas
 router.use('/', apiRoutes);
 
+// Adicionar um log para verificar as rotas registradas
+console.log('=== ROTAS REGISTRADAS ===');
+console.log('Rotas de autenticação:', Object.keys(authRoutes.stack.map(r => r.route).filter(r => r)).map(r => r.path));
+console.log('Rotas de clientes:', Object.keys(clientRoutes.stack.map(r => r.route).filter(r => r)).map(r => r.path));
+console.log('Rotas de promoções:', Object.keys(promotionRoutes.stack.map(r => r.route).filter(r => r)).map(r => r.path));
+console.log('Rotas de mensagens:', Object.keys(messageRoutes.stack.map(r => r.route).filter(r => r)).map(r => r.path));
+
 module.exports = router;

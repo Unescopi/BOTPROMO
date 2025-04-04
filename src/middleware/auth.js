@@ -4,31 +4,95 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config/config');
 const logger = require('../utils/logger');
+const User = require('../models/User');
 
 /**
  * Middleware para verificar o token JWT
  */
-exports.verifyToken = (req, res, next) => {
-  // Obtém o token do cabeçalho Authorization
-  const token = req.headers['authorization']?.split(' ')[1];
-  
-  if (!token) {
-    return res.status(403).json({
-      success: false,
-      message: 'Token não fornecido'
-    });
-  }
-  
+exports.verifyToken = async (req, res, next) => {
   try {
-    // Verifica o token
-    const decoded = jwt.verify(token, config.jwtSecret);
-    req.user = decoded;
+    console.log('=== INÍCIO: verifyToken ===');
+    console.log('Headers da requisição:', JSON.stringify(req.headers, null, 2));
+    
+    // Obter o token do cabeçalho Authorization
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+      console.log('Token extraído do cabeçalho Authorization:', token ? token.substring(0, 15) + '...' : 'Nenhum');
+    } else if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
+      console.log('Token extraído dos cookies:', token ? token.substring(0, 15) + '...' : 'Nenhum');
+    } else if (req.query && req.query.token) {
+      token = req.query.token;
+      console.log('Token extraído da query string:', token ? token.substring(0, 15) + '...' : 'Nenhum');
+    }
+    
+    // Verificar se o token existe
+    if (!token) {
+      console.log('Nenhum token fornecido');
+      return res.status(401).json({
+        success: false,
+        message: 'Acesso não autorizado. Token não fornecido.'
+      });
+    }
+    
+    // Verificar o token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret-jwt-cafeteria-bot-2025');
+    console.log('Token decodificado:', JSON.stringify(decoded, null, 2));
+    
+    // Verificar se o usuário existe
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      console.log('Usuário não encontrado para o token fornecido');
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não encontrado'
+      });
+    }
+    
+    // Verificar se o usuário está ativo
+    if (!user.active) {
+      console.log('Usuário está inativo:', user.email);
+      return res.status(401).json({
+        success: false,
+        message: 'Conta desativada. Entre em contato com o administrador.'
+      });
+    }
+    
+    // Adicionar o usuário à requisição
+    req.user = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role
+    };
+    
+    console.log('Autenticação bem-sucedida para:', user.email);
+    console.log('=== FIM: verifyToken ===');
+    
     next();
   } catch (error) {
-    logger.error(`Erro na autenticação: ${error.message}`);
-    return res.status(401).json({
+    console.error('=== ERRO: verifyToken ===');
+    console.error('Mensagem de erro:', error.message);
+    console.error('Stack trace:', error.stack);
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token inválido'
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token expirado'
+      });
+    }
+    
+    res.status(500).json({
       success: false,
-      message: 'Token inválido ou expirado'
+      message: 'Erro ao verificar autenticação'
     });
   }
 };

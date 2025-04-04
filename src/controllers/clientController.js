@@ -287,64 +287,67 @@ exports.getClient = async (req, res) => {
   }
 };
 
-// Criar um novo cliente
+/**
+ * @desc    Criar um novo cliente
+ * @route   POST /api/clients
+ * @access  Privado
+ */
 exports.createClient = async (req, res) => {
   try {
-    // Validação do número de telefone
-    if (!req.body.phone || !validator.isValidPhone(req.body.phone)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Número de telefone inválido' 
+    console.log('=== INÍCIO: createClient ===');
+    console.log('Corpo da requisição:', JSON.stringify(req.body, null, 2));
+    console.log('Headers da requisição:', JSON.stringify(req.headers, null, 2));
+    console.log('Usuário autenticado:', req.user ? req.user.id : 'Não autenticado');
+    
+    const { name, phone, email, tags, status } = req.body;
+    
+    // Validação básica
+    if (!name || !phone) {
+      console.log('Erro de validação: Nome e telefone são obrigatórios');
+      return res.status(400).json({
+        success: false,
+        message: 'Nome e telefone são obrigatórios'
       });
     }
     
-    // Formata o telefone
-    const formattedPhone = validator.formatPhone(req.body.phone);
-    
-    // Verifica se já existe
-    const existingClient = await Client.findOne({ phone: formattedPhone });
-    
+    // Verificar se o cliente já existe pelo telefone
+    const existingClient = await Client.findOne({ phone });
     if (existingClient) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cliente com este telefone já existe' 
+      console.log('Cliente já existe com este telefone:', phone);
+      return res.status(400).json({
+        success: false,
+        message: 'Cliente com este telefone já existe'
       });
     }
     
-    // Cria o cliente
-    const client = new Client({
-      name: req.body.name,
-      phone: formattedPhone,
-      email: req.body.email,
-      tags: req.body.tags || [],
-      notes: req.body.notes,
-      status: req.body.status || 'active',
-      source: 'manual'
+    // Criar o cliente
+    console.log('Criando novo cliente com dados:', { name, phone, email, tags, status });
+    const client = await Client.create({
+      name,
+      phone,
+      email,
+      tags,
+      status: status || 'active'
     });
     
-    // Campos opcionais
-    if (req.body.birthday) {
-      client.birthday = new Date(req.body.birthday);
-    }
+    console.log('Cliente criado com sucesso. ID:', client._id);
+    console.log('Dados do cliente criado:', JSON.stringify(client, null, 2));
     
-    if (req.body.frequencyScore) {
-      client.frequencyScore = req.body.frequencyScore;
-    }
-    
-    // Salva o cliente
-    await client.save();
-    
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
-      message: 'Cliente criado com sucesso',
       data: client
     });
     
+    console.log('=== FIM: createClient ===');
   } catch (error) {
-    logger.error(`Erro ao criar cliente: ${error.message}`);
-    return res.status(500).json({ 
-      success: false, 
-      message: `Erro ao criar cliente: ${error.message}` 
+    console.error('=== ERRO: createClient ===');
+    console.error('Mensagem de erro:', error.message);
+    console.error('Stack trace:', error.stack);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao criar cliente',
+      error: error.message
     });
   }
 };
