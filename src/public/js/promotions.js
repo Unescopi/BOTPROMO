@@ -17,11 +17,15 @@ const PromotionsManager = {
   },
 
   setupEventListeners() {
-    // Formulário de nova promoção
-    const newPromoForm = document.getElementById('new-promo-form');
-    if (newPromoForm) {
-      newPromoForm.addEventListener('submit', (e) => {
-        e.preventDefault();
+    console.log('Configurando event listeners para promoções...');
+    
+    // Adicione logs para verificar se os botões estão sendo encontrados
+    const savePromoBtn = document.getElementById('save-promo-btn');
+    console.log('Botão salvar promoção:', savePromoBtn);
+    
+    if (savePromoBtn) {
+      savePromoBtn.addEventListener('click', (e) => {
+        console.log('Botão salvar promoção clicado');
         this.savePromotion();
       });
     }
@@ -804,9 +808,9 @@ const PromotionsManager = {
   }
 };
 
-// Quando a página de promoções for carregada, inicializar o gerenciador
+// Inicialização quando o DOM estiver carregado
 document.addEventListener('DOMContentLoaded', () => {
-  // Verifica se estamos na página de promoções
+  console.log('DOM carregado para gerenciamento de promoções');
   if (document.querySelector('.promotions-table')) {
     PromotionsManager.init();
   }

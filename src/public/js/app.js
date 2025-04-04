@@ -7,32 +7,28 @@
 const App = {
   // Inicialização da aplicação
   init() {
-    // Verifica se o usuário está autenticado
-    if (!Auth.isAuthenticated()) {
-      window.location.href = '/login';
-      return;
-    }
+    console.log('Inicializando aplicação...');
+    this.setupEventListeners();
+    this.setupGlobalEventDelegation();
+    this.loadDashboard();
+  },
 
-    // Atualiza informações do usuário na interface
-    this.updateUserInfo();
+  // Configuração dos listeners de eventos
+  setupEventListeners() {
+    console.log('Configurando event listeners...');
     
-    // Inicializa a interface do usuário
-    if (window.appUI) {
-      console.log('UI já inicializada');
-    } else {
-      window.appUI = new UI();
-    }
+    // Adicione um log para verificar se os botões estão sendo encontrados
+    document.querySelectorAll('button').forEach(button => {
+      console.log('Botão encontrado:', button.id || button.textContent.trim());
+    });
     
-    // Carrega os dados iniciais
-    this.loadDashboardData();
-    
-    // Configura atualizações periódicas
-    this.setupPeriodicUpdates();
-    
-    // Configura manipuladores de eventos
-    this.setupEventHandlers();
-    
-    console.log('Cafeteria Promo Bot inicializado com sucesso!');
+    // Delegação de eventos para o documento inteiro
+    document.addEventListener('click', (e) => {
+      // Log para verificar os cliques
+      console.log('Clique detectado em:', e.target.tagName, e.target.id || e.target.className);
+      
+      // Implementar delegação de eventos aqui
+    });
   },
 
   // Atualiza informações do usuário na interface
@@ -319,21 +315,133 @@ const App = {
       hour: '2-digit',
       minute: '2-digit'
     });
+  },
+
+  // Adicione esta função ao objeto App
+  setupGlobalEventDelegation() {
+    console.log('Configurando delegação de eventos global...');
+    
+    // Delegação de eventos para o documento inteiro
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      
+      // Log para depuração
+      console.log('Clique detectado em:', target.tagName, target.id || target.className);
+      
+      // Botões de salvar
+      if (target.matches('#save-client-btn') || target.closest('#save-client-btn')) {
+        console.log('Botão salvar cliente clicado via delegação');
+        if (window.ClientsManager && typeof window.ClientsManager.saveClient === 'function') {
+          window.ClientsManager.saveClient();
+        }
+      }
+      
+      if (target.matches('#save-promo-btn') || target.closest('#save-promo-btn')) {
+        console.log('Botão salvar promoção clicado via delegação');
+        if (window.PromotionsManager && typeof window.PromotionsManager.savePromotion === 'function') {
+          window.PromotionsManager.savePromotion();
+        }
+      }
+      
+      if (target.matches('#save-message-btn') || target.closest('#save-message-btn')) {
+        console.log('Botão salvar mensagem clicado via delegação');
+        if (window.MessagesManager && typeof window.MessagesManager.saveMessage === 'function') {
+          window.MessagesManager.saveMessage();
+        }
+      }
+      
+      if (target.matches('#save-settings-btn') || target.closest('#save-settings-btn')) {
+        console.log('Botão salvar configurações clicado via delegação');
+        if (window.SettingsManager && typeof window.SettingsManager.saveSettings === 'function') {
+          window.SettingsManager.saveSettings();
+        }
+      }
+      
+      // Botões de envio
+      if (target.matches('#send-message-btn') || target.closest('#send-message-btn')) {
+        console.log('Botão enviar mensagem clicado via delegação');
+        if (window.MessagesManager && typeof window.MessagesManager.sendMessage === 'function') {
+          window.MessagesManager.sendMessage();
+        }
+      }
+      
+      // Botões de exclusão
+      if (target.matches('.delete-client-btn') || target.closest('.delete-client-btn')) {
+        const clientId = target.closest('tr').dataset.id || target.dataset.id;
+        console.log('Botão excluir cliente clicado via delegação, ID:', clientId);
+        if (window.ClientsManager && typeof window.ClientsManager.deleteClient === 'function') {
+          window.ClientsManager.deleteClient(clientId);
+        }
+      }
+      
+      if (target.matches('.delete-promo-btn') || target.closest('.delete-promo-btn')) {
+        const promoId = target.closest('tr').dataset.id || target.dataset.id;
+        console.log('Botão excluir promoção clicado via delegação, ID:', promoId);
+        if (window.PromotionsManager && typeof window.PromotionsManager.deletePromotion === 'function') {
+          window.PromotionsManager.deletePromotion(promoId);
+        }
+      }
+      
+      if (target.matches('.delete-message-btn') || target.closest('.delete-message-btn')) {
+        const messageId = target.closest('tr').dataset.id || target.dataset.id;
+        console.log('Botão excluir mensagem clicado via delegação, ID:', messageId);
+        if (window.MessagesManager && typeof window.MessagesManager.deleteMessage === 'function') {
+          window.MessagesManager.deleteMessage(messageId);
+        }
+      }
+      
+      // Botões de edição
+      if (target.matches('.edit-client-btn') || target.closest('.edit-client-btn')) {
+        const clientId = target.closest('tr').dataset.id || target.dataset.id;
+        console.log('Botão editar cliente clicado via delegação, ID:', clientId);
+        if (window.ClientsManager && typeof window.ClientsManager.editClient === 'function') {
+          window.ClientsManager.editClient(clientId);
+        }
+      }
+      
+      if (target.matches('.edit-promo-btn') || target.closest('.edit-promo-btn')) {
+        const promoId = target.closest('tr').dataset.id || target.dataset.id;
+        console.log('Botão editar promoção clicado via delegação, ID:', promoId);
+        if (window.PromotionsManager && typeof window.PromotionsManager.editPromotion === 'function') {
+          window.PromotionsManager.editPromotion(promoId);
+        }
+      }
+      
+      // Adicione mais handlers conforme necessário
+    });
+  },
+
+  setupActionDelegation() {
+    console.log('Configurando delegação de ações...');
+    
+    document.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-action]');
+      if (!target) return;
+      
+      const action = target.dataset.action;
+      const module = target.dataset.module;
+      const id = target.dataset.id;
+      
+      console.log(`Ação detectada: ${action}, Módulo: ${module}, ID: ${id}`);
+      
+      // Executa a ação no módulo correspondente
+      if (module && window[module] && typeof window[module][action] === 'function') {
+        if (id) {
+          window[module][action](id);
+        } else {
+          window[module][action]();
+        }
+      }
+    });
   }
 };
 
-// Inicializa a aplicação quando o DOM estiver pronto
+// Inicialização quando o DOM estiver carregado
 document.addEventListener('DOMContentLoaded', () => {
-  // Verifica se estamos em uma página que não precisa de autenticação
-  const publicPages = ['/login', '/reset-password', '/register'];
-  const isPublicPage = publicPages.some(page => window.location.pathname.includes(page));
-  
-  if (!isPublicPage) {
-    // Inicializa a autenticação antes de inicializar a aplicação
-    if (Auth.isAuthenticated()) {
-      App.init();
-    } else {
-      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
-    }
+  console.log('DOM carregado, verificando autenticação...');
+  if (Auth.isAuthenticated()) {
+    App.init();
+  } else {
+    window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
   }
 });

@@ -17,19 +17,17 @@ const ClientsManager = {
   },
 
   setupEventListeners() {
+    console.log('Configurando event listeners para clientes...');
+    
+    // Adicione logs para verificar se os botões estão sendo encontrados
+    const saveClientBtn = document.getElementById('save-client-btn');
+    console.log('Botão salvar cliente:', saveClientBtn);
+    
     // Manipulador para adicionar novo cliente
     const clientForm = document.getElementById('client-form');
     if (clientForm) {
       clientForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        this.saveClient();
-      });
-    }
-    
-    // Botão de salvar no modal de cliente
-    const saveClientBtn = document.getElementById('save-client-btn');
-    if (saveClientBtn) {
-      saveClientBtn.addEventListener('click', () => {
         this.saveClient();
       });
     }
@@ -629,9 +627,9 @@ const ClientsManager = {
   }
 };
 
-// Quando a página de clientes for carregada, inicializar o gerenciador
+// Inicialização quando o DOM estiver carregado
 document.addEventListener('DOMContentLoaded', () => {
-  // Verifica se estamos na página de clientes
+  console.log('DOM carregado para gerenciamento de clientes');
   if (document.querySelector('#clients-table-body')) {
     ClientsManager.init();
   }
