@@ -47,29 +47,12 @@ const App = {
       const result = await API.testConnection();
       console.log('Resultado do teste de conexão:', result);
       
-      // Verificar se pelo menos um endpoint está funcionando
+      // Verificar se a conexão foi bem-sucedida
       if (result.success) {
         console.log('Conexão com API estabelecida com sucesso');
-        
-        // Verificar se o endpoint /stats está funcionando
-        const statsTest = result.endpointTests.find(test => test.endpoint === '/stats');
-        if (statsTest && statsTest.success) {
-          console.log('Endpoint /stats está funcionando, carregando dashboard...');
-          return true;
-        } else {
-          console.warn('Endpoint /stats não está funcionando, mas outros endpoints sim');
-          // Tentar carregar de qualquer forma
-          return true;
-        }
+        return true;
       } else {
-        console.error('Falha ao conectar com a API:', result.overallStatus);
-        
-        // Analisar os resultados para fornecer diagnóstico mais específico
-        const allTimeout = result.endpointTests.every(test => test.isAborted);
-        if (allTimeout) {
-          console.error('Todos os endpoints resultaram em timeout');
-        }
-        
+        console.error('Falha ao conectar com a API:', result.status);
         return false;
       }
     } catch (error) {

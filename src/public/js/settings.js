@@ -356,28 +356,35 @@ const SettingsManager = {
     testBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Testando...';
     testBtn.disabled = true;
     
-    fetch('/api/settings/test-connection', {
-      method: 'POST',
+    // Teste direto usando fetch para evitar dependências
+    fetch(`${apiUrl}/status`, {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': apiKey ? `Bearer ${apiKey}` : ''
       },
-      body: JSON.stringify({
-        url: apiUrl,
-        key: apiKey
-      })
+      cache: 'no-store'
     })
       .then(response => {
         if (!response.ok) {
-          throw new Error('Falha na conexão');
+          throw new Error(`Erro HTTP: ${response.status}`);
         }
-        return response.json();
+        return response.text().then(text => {
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            // Se não for JSON, retornar o texto
+            return { success: true, text: text };
+          }
+        });
       })
       .then(data => {
+        console.log('Teste de API bem-sucedido:', data);
         this.showToast('Conexão estabelecida com sucesso', 'success');
       })
       .catch(error => {
         console.error('Erro ao testar conexão:', error);
-        this.showToast('Erro ao conectar com a API', 'danger');
+        this.showToast(`Erro ao conectar com a API: ${error.message}`, 'danger');
       })
       .finally(() => {
         // Restaurar o botão
