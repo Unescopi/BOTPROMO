@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const clientController = require('../controllers/clientController');
-const { authenticateToken } = require('../middleware/authMiddleware');
+const auth = require('../middleware/auth');
 const app = require('../app');
 
 // Log de debug para rastrear todas as chamadas à API de clientes
@@ -51,17 +51,17 @@ router.get('/demo', (req, res) => {
 });
 
 // Todas as rotas a seguir usam autenticação, exceto em ambiente de desenvolvimento
-const auth = process.env.NODE_ENV === 'development' ? (req, res, next) => next() : authenticateToken;
+const authMiddleware = process.env.NODE_ENV === 'development' ? (req, res, next) => next() : auth.verifyToken;
 
 // Rotas protegidas
-router.post('/', auth, (req, res, next) => {
+router.post('/', authMiddleware, (req, res, next) => {
   console.log('=== REQUISIÇÃO POST /clients ===');
   console.log('Body:', req.body);
   console.log('User ID:', req.user?.id);
   next();
 }, clientController.createClient);
 
-router.get('/', auth, (req, res, next) => {
+router.get('/', authMiddleware, (req, res, next) => {
   console.log('=== REQUISIÇÃO GET /clients ===');
   console.log('Query params:', req.query);
   console.log('User ID:', req.user?.id);
@@ -79,16 +79,16 @@ router.get('/', auth, (req, res, next) => {
   next();
 }, clientController.getClients);
 
-router.get('/:id', auth, clientController.getClient);
-router.put('/:id', auth, clientController.updateClient);
-router.delete('/:id', auth, clientController.deleteClient);
+router.get('/:id', authMiddleware, clientController.getClient);
+router.put('/:id', authMiddleware, clientController.updateClient);
+router.delete('/:id', authMiddleware, clientController.deleteClient);
 
 // Rotas adicionais
-router.post('/batch', auth, clientController.batchOperation);
-router.post('/import', auth, clientController.importClients);
-router.get('/export', auth, clientController.exportClients);
-router.get('/tags', auth, clientController.getTags);
-router.post('/tags/bulk', auth, clientController.addTagToMany);
-router.get('/stats', auth, clientController.getStats);
+router.post('/batch', authMiddleware, clientController.batchOperation);
+router.post('/import', authMiddleware, clientController.importClients);
+router.get('/export', authMiddleware, clientController.exportClients);
+router.get('/tags', authMiddleware, clientController.getTags);
+router.post('/tags/bulk', authMiddleware, clientController.addTagToMany);
+router.get('/stats', authMiddleware, clientController.getStats);
 
 module.exports = router;
