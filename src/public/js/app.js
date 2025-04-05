@@ -79,9 +79,24 @@ const App = {
     console.log('=== INÍCIO: loadDashboard ===');
     
     try {
+      // Mostrar indicadores de carregamento
+      document.querySelectorAll('.client-count, .active-promos, .messages-sent, .delivery-rate')
+        .forEach(el => {
+          el.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        });
+      
       // Carregar estatísticas
       console.log('Carregando estatísticas...');
-      const stats = await API.get('/stats');
+      
+      // Adicionar timeout para evitar espera infinita
+      const statsPromise = Promise.race([
+        API.get('/stats'),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout ao carregar estatísticas')), 10000)
+        )
+      ]);
+      
+      const stats = await statsPromise;
       console.log('Estatísticas recebidas:', stats);
       
       // Atualizar contadores
@@ -89,61 +104,50 @@ const App = {
         // Clientes
         const clientCount = document.querySelector('.client-count');
         if (clientCount) {
-          clientCount.textContent = stats.clients?.total || 0;
-          console.log('Contador de clientes atualizado:', stats.clients?.total || 0);
+          clientCount.textContent = stats.clients || 0;
+          console.log('Contador de clientes atualizado:', stats.clients || 0);
         }
         
         // Promoções ativas
         const activePromos = document.querySelector('.active-promos');
         if (activePromos) {
-          activePromos.textContent = stats.promotions?.active || 0;
-          console.log('Contador de promoções ativas atualizado:', stats.promotions?.active || 0);
+          activePromos.textContent = stats.promotions || 0;
+          console.log('Contador de promoções ativas atualizado:', stats.promotions || 0);
         }
         
         // Mensagens enviadas
         const messagesSent = document.querySelector('.messages-sent');
         if (messagesSent) {
-          messagesSent.textContent = stats.messages?.sent || 0;
-          console.log('Contador de mensagens enviadas atualizado:', stats.messages?.sent || 0);
+          messagesSent.textContent = stats.messages || 0;
+          console.log('Contador de mensagens enviadas atualizado:', stats.messages || 0);
         }
-      }
-      
-      // Carregar promoções recentes
-      console.log('Carregando promoções recentes...');
-      const recentPromos = await API.promotions.getRecent();
-      console.log('Promoções recentes recebidas:', recentPromos);
-      
-      // Atualizar lista de promoções recentes
-      const recentPromosList = document.getElementById('recent-promos');
-      if (recentPromosList && recentPromos && recentPromos.length > 0) {
-        recentPromosList.innerHTML = recentPromos.map(promo => `
-          <div class="list-group-item">
-            <div class="d-flex justify-content-between align-items-center">
-              <h6 class="mb-1">${promo.name}</h6>
-              <span class="badge bg-${promo.status === 'Ativa' ? 'success' : 
-                                      promo.status === 'Enviada' ? 'primary' : 
-                                      'warning text-dark'}">${promo.status}</span>
-            </div>
-            <p class="mb-1 small text-muted">
-              <i class="fas fa-calendar-alt me-1"></i>${new Date(promo.date).toLocaleDateString('pt-BR')}
-              <i class="fas fa-users ms-2 me-1"></i>${promo.recipients} destinatários
-            </p>
-          </div>
-        `).join('');
-        console.log('Lista de promoções recentes atualizada');
-      } else if (recentPromosList) {
-        recentPromosList.innerHTML = `
-          <div class="list-group-item text-center py-5">
-            <i class="fas fa-info-circle me-2"></i>Nenhuma promoção recente
-          </div>
-        `;
-        console.log('Nenhuma promoção recente encontrada');
+        
+        // Taxa de entrega
+        const deliveryRate = document.querySelector('.delivery-rate');
+        if (deliveryRate) {
+          deliveryRate.textContent = stats.deliveryRate?.replace('%', '') || '0';
+          console.log('Taxa de entrega atualizada:', stats.deliveryRate || '0%');
+        }
+      } else {
+        console.warn('Nenhum dado de estatística recebido');
+        document.querySelectorAll('.client-count, .active-promos, .messages-sent')
+          .forEach(el => {
+            el.textContent = '0';
+          });
+        document.querySelector('.delivery-rate')?.textContent = '0';
       }
       
       console.log('=== FIM: loadDashboard ===');
     } catch (error) {
-      console.error('=== ERRO: loadDashboard ===');
-      console.error('Mensagem de erro:', error);
+      console.error('=== ERRO: loadDashboard ===', error);
+      document.querySelectorAll('.client-count, .active-promos, .messages-sent')
+        .forEach(el => {
+          el.textContent = '0';
+        });
+      document.querySelector('.delivery-rate')?.textContent = '0';
+      
+      // Mostrar mensagem de erro
+      this.showToast('Erro ao carregar dados do dashboard. Tente novamente.', 'danger');
     }
   },
 

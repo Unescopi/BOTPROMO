@@ -32,13 +32,24 @@ const API = {
   // Métodos genéricos para requisições HTTP
   async get(endpoint) {
     try {
-      console.log(`=== API.get: ${endpoint} ===`);
+      console.log(`=== INÍCIO API.get: ${endpoint} ===`);
+      console.log('Cabeçalhos:', this.getAuthHeaders());
       
+      // Adicionar timeout para evitar requisições que nunca respondem
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos
+      
+      // Realizar a requisição com timeout
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        headers: this.getAuthHeaders()
+        headers: this.getAuthHeaders(),
+        signal: controller.signal
       });
       
+      // Limpar o timeout
+      clearTimeout(timeoutId);
+      
       console.log('Status da resposta:', response.status);
+      console.log('Headers da resposta:', Object.fromEntries([...response.headers.entries()]));
       
       if (response.status === 401) {
         // Token expirado ou inválido
@@ -52,12 +63,38 @@ const API = {
         throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
       }
       
-      const data = await response.json();
+      // Clonar a resposta para verificar o conteúdo
+      const responseClone = response.clone();
+      const rawText = await responseClone.text();
+      console.log('Texto bruto da resposta:', rawText);
+      
+      // Se a resposta for vazia, retornar um objeto vazio
+      if (!rawText) {
+        console.log('Resposta vazia, retornando objeto vazio');
+        return {};
+      }
+      
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (e) {
+        console.error('Erro ao parsear JSON:', e);
+        console.log('Conteúdo que causou erro:', rawText);
+        throw new Error('Erro ao processar resposta do servidor: JSON inválido');
+      }
+      
       console.log('Dados da resposta:', data);
+      console.log(`=== FIM API.get: ${endpoint} ===`);
       
       return data;
     } catch (error) {
       console.error(`Erro na requisição GET para ${endpoint}:`, error);
+      
+      // Tratamento especial para timeout
+      if (error.name === 'AbortError') {
+        console.error('A requisição excedeu o tempo limite de 15 segundos');
+      }
+      
       throw error;
     }
   },

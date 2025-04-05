@@ -11,6 +11,12 @@ const fs = require('fs');
  */
 exports.exportClientsToJson = async (req, res) => {
   try {
+    console.log('Requisição recebida:', {
+      query: req.query,
+      body: req.body,
+      headers: req.headers
+    });
+    
     logger.info('Iniciando exportação de clientes para JSON');
     
     // Obter filtros da requisição
@@ -46,6 +52,12 @@ exports.exportClientsToJson = async (req, res) => {
  */
 exports.exportClientsToCsv = async (req, res) => {
   try {
+    console.log('Requisição recebida:', {
+      query: req.query,
+      body: req.body,
+      headers: req.headers
+    });
+    
     logger.info('Iniciando exportação de clientes para CSV');
     
     // Obter filtros da requisição
@@ -81,6 +93,12 @@ exports.exportClientsToCsv = async (req, res) => {
  */
 exports.exportClientsToExcel = async (req, res) => {
   try {
+    console.log('Requisição recebida:', {
+      query: req.query,
+      body: req.body,
+      headers: req.headers
+    });
+    
     logger.info('Iniciando exportação de clientes para Excel');
     
     // Obter filtros da requisição
@@ -116,6 +134,12 @@ exports.exportClientsToExcel = async (req, res) => {
  */
 exports.exportPromotionsToJson = async (req, res) => {
   try {
+    console.log('Requisição recebida:', {
+      query: req.query,
+      body: req.body,
+      headers: req.headers
+    });
+    
     logger.info('Iniciando exportação de promoções para JSON');
     
     // Obter filtros da requisição
@@ -151,6 +175,12 @@ exports.exportPromotionsToJson = async (req, res) => {
  */
 exports.exportMessagesToJson = async (req, res) => {
   try {
+    console.log('Requisição recebida:', {
+      query: req.query,
+      body: req.body,
+      headers: req.headers
+    });
+    
     logger.info('Iniciando exportação de mensagens para JSON');
     
     // Obter filtros da requisição
@@ -186,6 +216,12 @@ exports.exportMessagesToJson = async (req, res) => {
  */
 exports.createFullBackup = async (req, res) => {
   try {
+    console.log('Requisição recebida:', {
+      query: req.query,
+      body: req.body,
+      headers: req.headers
+    });
+    
     logger.info('Iniciando backup completo do sistema');
     
     // Criar backup

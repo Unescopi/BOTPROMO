@@ -40,22 +40,32 @@ router.get('/webhook-info', (req, res) => {
 // Rota para estatísticas gerais
 router.get('/stats', async (req, res) => {
   try {
+    console.log('=== Processando requisição /stats ===');
+    
     // Obtém estatísticas básicas do banco de dados
+    console.log('Buscando contagem de clientes...');
     const clients = await Client.countDocuments();
+    console.log(`Contagem de clientes: ${clients}`);
     
     // Contagem de mensagens da última semana
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    console.log('Buscando contagem de mensagens...');
     const messages = await Message.countDocuments({
       timestamp: { $gte: oneWeekAgo }
     });
+    console.log(`Contagem de mensagens: ${messages}`);
     
     // Promoções ativas
+    console.log('Buscando contagem de promoções...');
     const promotions = await Promotion.countDocuments({
       status: 'active'
     });
+    console.log(`Contagem de promoções: ${promotions}`);
     
     // Cálculo da taxa de entrega
+    console.log('Calculando taxa de entrega...');
     const totalSentMessages = await Message.countDocuments({
       direction: 'sent'
     });
@@ -71,19 +81,37 @@ router.get('/stats', async (req, res) => {
       : 0;
     
     const deliveryRate = `${deliveryRateValue}%`;
+    console.log(`Taxa de entrega: ${deliveryRate} (${deliveredMessages}/${totalSentMessages})`);
     
-    // Retorna as estatísticas
-    res.status(200).json({
+    // Dados a serem retornados
+    const statsData = {
       success: true,
       clients,
       messages,
       promotions,
       deliveryRate,
-      timestamp: new Date()
-    });
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('Dados de estatísticas:', statsData);
+    
+    // Define cache-control para evitar problemas de cache
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    // Retorna as estatísticas
+    res.status(200).json(statsData);
+    console.log('=== Requisição /stats concluída com sucesso ===');
     
   } catch (error) {
-    console.error('Erro ao obter estatísticas:', error);
+    console.error('=== ERRO ao obter estatísticas ===', error);
+    
+    // Logs detalhados do erro
+    console.error('Mensagem de erro:', error.message);
+    console.error('Stack de erro:', error.stack);
+    
+    // Retorna erro
     res.status(500).json({
       success: false,
       message: 'Erro ao obter estatísticas',
