@@ -133,15 +133,29 @@ class UI {
       }
       
       try {
+        // Adicionar timestamp para evitar cache
+        const timestamp = Date.now();
+        const pageUrl = `/pages/${pageName}.html?_t=${timestamp}`;
+        console.log(`Carregando página: ${pageUrl}`);
+        
         // Tenta carregar a página pelo nome
-        const response = await fetch(`/pages/${pageName}.html`);
+        const response = await fetch(pageUrl);
         if (!response.ok) throw new Error(`Página "${pageName}" não encontrada`);
         
         const content = await response.text();
+        if (content.length < 50) {
+          console.warn('Conteúdo da página parece muito pequeno:', content);
+        }
+        
         mainContent.innerHTML = content;
         
         // Atualiza a página atual
         this.currentPage = pageName;
+        
+        // Adicionar botão para forçar dados de exemplo no dashboard
+        if (pageName === 'dashboard') {
+          this.addDebugFeatures();
+        }
         
         // Inicializa componentes específicos da página
         this.initPageComponents(pageName);
@@ -149,7 +163,15 @@ class UI {
         console.log(`Página "${pageName}" carregada com sucesso`);
       } catch (error) {
         console.error(`Erro ao carregar página "${pageName}":`, error);
-        mainContent.innerHTML = `<div class="alert alert-danger">Erro ao carregar página: ${error.message}</div>`;
+        mainContent.innerHTML = `
+          <div class="alert alert-danger">
+            <h4><i class="fas fa-exclamation-triangle me-2"></i>Erro ao carregar página</h4>
+            <p>Erro: ${error.message}</p>
+            <button class="btn btn-outline-danger mt-3" onclick="window.location.reload()">
+              <i class="fas fa-sync me-2"></i>Tentar novamente
+            </button>
+          </div>
+        `;
       }
     } catch (error) {
       console.error('Erro ao mostrar página:', error);
@@ -473,6 +495,122 @@ class UI {
   initSettingsPage() {
     console.log('Página de configurações inicializada');
     // Adicione aqui a lógica para a página de configurações
+  }
+
+  /**
+   * Adiciona recursos de depuração extras
+   */
+  addDebugFeatures() {
+    // Verificar se está na página dashboard e não adicionou ainda
+    if (this.currentPage !== 'dashboard' || document.getElementById('force-demo-button')) return;
+    
+    // Ver se já existe o painel diagnóstico
+    const diagnosticPanel = document.getElementById('diagnostic-panel');
+    
+    // Se não existir, criar um botão especial para forçar dados de exemplo
+    if (!diagnosticPanel) {
+      console.log('Adicionando botão de depuração ao dashboard');
+      
+      const debugButton = document.createElement('div');
+      debugButton.className = 'position-fixed bottom-0 end-0 m-3';
+      debugButton.innerHTML = `
+        <button id="force-demo-button" class="btn btn-warning">
+          <i class="fas fa-bug me-2"></i>Forçar Dados
+        </button>
+      `;
+      
+      document.body.appendChild(debugButton);
+      
+      // Adicionar evento ao botão
+      document.getElementById('force-demo-button').addEventListener('click', () => {
+        this.forceExampleData();
+      });
+    }
+  }
+  
+  /**
+   * Força o uso de dados de exemplo (para debug)
+   */
+  forceExampleData() {
+    console.log('Forçando dados de exemplo...');
+    
+    // Criar dados de exemplo
+    const demoData = {
+      clients: 253,
+      messages: 1573,
+      promotions: 12,
+      deliveryRate: '95%',
+      newClients: 15,
+      scheduledPromotions: 5,
+      readRate: '75%',
+      responses: 215
+    };
+    
+    // Atualizar contadores
+    document.querySelector('.client-count')?.textContent = demoData.clients;
+    document.querySelector('.active-promos')?.textContent = demoData.promotions;
+    document.querySelector('.messages-sent')?.textContent = demoData.messages;
+    document.querySelector('.delivery-rate')?.textContent = demoData.deliveryRate.replace('%', '');
+    
+    // Atualizar dados secundários se existirem
+    document.querySelector('.new-clients')?.textContent = demoData.newClients;
+    document.querySelector('.scheduled-promos')?.textContent = demoData.scheduledPromotions;
+    document.querySelector('.read-rate')?.textContent = demoData.readRate;
+    document.querySelector('.response-count')?.textContent = demoData.responses;
+    
+    // Se houver painel de diagnóstico, atualizar
+    const apiRawData = document.getElementById('api-raw-data');
+    if (apiRawData) {
+      apiRawData.textContent = JSON.stringify(demoData, null, 2);
+    }
+    
+    // Mostrar notificação
+    this.showNotification('Dados de exemplo aplicados com sucesso!', 'success');
+  }
+  
+  /**
+   * Mostra uma notificação
+   * @param {string} message - Mensagem a ser exibida
+   * @param {string} type - Tipo de notificação (success, warning, danger)
+   */
+  showNotification(message, type = 'info') {
+    // Verificar se já existe container de notificações
+    let container = document.querySelector('.notification-container');
+    
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'notification-container position-fixed bottom-0 end-0 p-3';
+      document.body.appendChild(container);
+    }
+    
+    // Criar notificação
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} notification`;
+    notification.innerHTML = message;
+    
+    // Adicionar estilo
+    notification.style.opacity = '0';
+    notification.style.transform = 'translateY(20px)';
+    notification.style.transition = 'all 0.3s ease';
+    
+    // Adicionar ao container
+    container.appendChild(notification);
+    
+    // Animar entrada
+    setTimeout(() => {
+      notification.style.opacity = '1';
+      notification.style.transform = 'translateY(0)';
+    }, 10);
+    
+    // Remover após 3 segundos
+    setTimeout(() => {
+      notification.style.opacity = '0';
+      notification.style.transform = 'translateY(20px)';
+      
+      setTimeout(() => {
+        notification.remove();
+      }, 300);
+    }, 3000);
   }
 }
 
