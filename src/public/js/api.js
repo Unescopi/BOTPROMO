@@ -9,7 +9,9 @@ const API = {
 
   // Obter o token de autenticação do localStorage
   getAuthToken() {
-    return localStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken');
+    console.log('Token de autenticação:', token ? token.substring(0, 15) + '...' : 'Nenhum');
+    return token;
   },
 
   // Adicionar cabeçalhos de autenticação
@@ -23,15 +25,20 @@ const API = {
       headers['Authorization'] = `Bearer ${token}`;
     }
     
+    console.log('Cabeçalhos de autenticação:', headers);
     return headers;
   },
 
   // Métodos genéricos para requisições HTTP
   async get(endpoint) {
     try {
+      console.log(`=== API.get: ${endpoint} ===`);
+      
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         headers: this.getAuthHeaders()
       });
+      
+      console.log('Status da resposta:', response.status);
       
       if (response.status === 401) {
         // Token expirado ou inválido
@@ -39,8 +46,16 @@ const API = {
         throw new Error('Sessão expirada. Por favor, faça login novamente.');
       }
       
-      if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
-      return await response.json();
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Erro na resposta:', errorData);
+        throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Dados da resposta:', data);
+      
+      return data;
     } catch (error) {
       console.error(`Erro na requisição GET para ${endpoint}:`, error);
       throw error;
@@ -188,8 +203,28 @@ const API = {
 
   // API de Clientes
   clients: {
-    async getAll() {
-      return API.get('/clients');
+    async getAll(params = {}) {
+      console.log('=== API.clients.getAll ===');
+      console.log('Parâmetros:', params);
+      
+      try {
+        // Construir a query string
+        const queryParams = new URLSearchParams();
+        Object.keys(params).forEach(key => {
+          if (params[key]) queryParams.append(key, params[key]);
+        });
+        
+        const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+        console.log('Query string:', queryString);
+        
+        const response = await API.get(`/clients${queryString}`);
+        console.log('Resposta da API:', response);
+        
+        return response.data || [];
+      } catch (error) {
+        console.error('Erro ao buscar clientes:', error);
+        throw error;
+      }
     },
     
     async get(id) {
@@ -244,8 +279,28 @@ const API = {
 
   // API de Promoções
   promotions: {
-    async getAll() {
-      return API.get('/promotions');
+    async getAll(params = {}) {
+      console.log('=== API.promotions.getAll ===');
+      console.log('Parâmetros:', params);
+      
+      try {
+        // Construir a query string
+        const queryParams = new URLSearchParams();
+        Object.keys(params).forEach(key => {
+          if (params[key]) queryParams.append(key, params[key]);
+        });
+        
+        const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+        console.log('Query string:', queryString);
+        
+        const response = await API.get(`/promotions${queryString}`);
+        console.log('Resposta da API:', response);
+        
+        return response.data || [];
+      } catch (error) {
+        console.error('Erro ao buscar promoções:', error);
+        throw error;
+      }
     },
     
     async get(id) {
@@ -334,12 +389,16 @@ const API = {
   
   // API de Webhook
   webhook: {
-    async getEventLog() {
-      return API.get('/webhook/events');
+    async getStats() {
+      return API.get('/webhook/stats');
     },
     
-    async getLastEvents(limit = 10) {
+    async getRecentEvents(limit = 10) {
       return API.get(`/webhook/events/recent?limit=${limit}`);
+    },
+    
+    async getMessageFormats() {
+      return API.get('/webhook/formats');
     },
     
     async getConfiguration() {
@@ -348,6 +407,81 @@ const API = {
     
     async updateConfiguration(config) {
       return API.put('/webhook/config', config);
+    }
+  },
+
+  // API de Diagnóstico
+  diagnostics: {
+    async run() {
+      return API.get('/diagnostics/run');
+    },
+    
+    async generateReport() {
+      return API.get('/diagnostics/report');
+    },
+    
+    async checkDatabase() {
+      return API.get('/diagnostics/database');
+    },
+    
+    async checkWhatsApp() {
+      return API.get('/diagnostics/whatsapp');
+    },
+    
+    async checkFileSystem() {
+      return API.get('/diagnostics/filesystem');
+    }
+  },
+
+  // API de Exportação
+  export: {
+    async clientsToJson(filter = {}) {
+      const queryParams = new URLSearchParams();
+      if (filter && Object.keys(filter).length > 0) {
+        queryParams.append('filter', JSON.stringify(filter));
+      }
+      
+      window.location.href = `${API.baseUrl}/export/clients/json?${queryParams.toString()}`;
+    },
+    
+    async clientsToCsv(filter = {}) {
+      const queryParams = new URLSearchParams();
+      if (filter && Object.keys(filter).length > 0) {
+        queryParams.append('filter', JSON.stringify(filter));
+      }
+      
+      window.location.href = `${API.baseUrl}/export/clients/csv?${queryParams.toString()}`;
+    },
+    
+    async clientsToExcel(filter = {}) {
+      const queryParams = new URLSearchParams();
+      if (filter && Object.keys(filter).length > 0) {
+        queryParams.append('filter', JSON.stringify(filter));
+      }
+      
+      window.location.href = `${API.baseUrl}/export/clients/excel?${queryParams.toString()}`;
+    },
+    
+    async promotionsToJson(filter = {}) {
+      const queryParams = new URLSearchParams();
+      if (filter && Object.keys(filter).length > 0) {
+        queryParams.append('filter', JSON.stringify(filter));
+      }
+      
+      window.location.href = `${API.baseUrl}/export/promotions/json?${queryParams.toString()}`;
+    },
+    
+    async messagesToJson(filter = {}) {
+      const queryParams = new URLSearchParams();
+      if (filter && Object.keys(filter).length > 0) {
+        queryParams.append('filter', JSON.stringify(filter));
+      }
+      
+      window.location.href = `${API.baseUrl}/export/messages/json?${queryParams.toString()}`;
+    },
+    
+    async createBackup() {
+      return API.get('/export/backup');
     }
   }
 };

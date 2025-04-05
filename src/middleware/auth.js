@@ -52,25 +52,19 @@ exports.verifyToken = async (req, res, next) => {
     
     // Verificar se o usuário está ativo
     if (!user.active) {
-      console.log('Usuário está inativo:', user.email);
+      console.log('Usuário inativo');
       return res.status(401).json({
         success: false,
-        message: 'Conta desativada. Entre em contato com o administrador.'
+        message: 'Usuário inativo'
       });
     }
     
     // Adicionar o usuário à requisição
-    req.user = {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    };
-    
-    console.log('Autenticação bem-sucedida para:', user.email);
-    console.log('=== FIM: verifyToken ===');
+    req.user = user;
+    console.log('Usuário autenticado:', user.name, '(', user.email, ')');
     
     next();
+    console.log('=== FIM: verifyToken ===');
   } catch (error) {
     console.error('=== ERRO: verifyToken ===');
     console.error('Mensagem de erro:', error.message);

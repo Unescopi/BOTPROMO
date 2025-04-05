@@ -223,24 +223,30 @@ exports.updatePromotion = async (req, res) => {
   }
 };
 
-// Listar todas as promoções com paginação e filtros
+// Obter todas as promoções
 exports.getPromotions = async (req, res) => {
   try {
+    console.log('=== INÍCIO: getPromotions ===');
+    
+    // Opções de paginação
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
-
-    // Filtros
+    
+    // Opções de filtro
     const filter = {};
-
+    
+    // Filtro por status
     if (req.query.status) {
       filter.status = req.query.status;
     }
-
+    
+    // Filtro por tipo
     if (req.query.type) {
       filter.type = req.query.type;
     }
-
+    
+    // Filtro por busca
     if (req.query.search) {
       const searchRegex = new RegExp(req.query.search, 'i');
       filter.$or = [
@@ -248,53 +254,39 @@ exports.getPromotions = async (req, res) => {
         { description: searchRegex }
       ];
     }
-
-    // Filtros de data
-    if (req.query.startAfter) {
-      filter['schedule.startDate'] = { $gte: new Date(req.query.startAfter) };
-    }
-
-    if (req.query.startBefore) {
-      filter['schedule.startDate'] = { 
-        ...filter['schedule.startDate'],
-        $lte: new Date(req.query.startBefore)
-      };
-    }
-
-    // Contagem total para paginação
-    const total = await Promotion.countDocuments(filter);
-
-    // Consulta com paginação e ordenação
+    
+    console.log('Filtros aplicados:', filter);
+    
+    // Executar a consulta
     const promotions = await Promotion.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit)
-      .populate('createdBy', 'name');
-
-    // Informações de paginação
-    const totalPages = Math.ceil(total / limit);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
-
-    return res.status(200).json({
+      .limit(limit);
+    
+    // Contar total de registros
+    const total = await Promotion.countDocuments(filter);
+    
+    console.log(`Encontradas ${promotions.length} promoções de um total de ${total}`);
+    
+    // Retornar os resultados
+    res.status(200).json({
       success: true,
       count: promotions.length,
       total,
-      pagination: {
-        page,
-        limit,
-        totalPages,
-        hasNextPage,
-        hasPrevPage
-      },
+      page,
+      pages: Math.ceil(total / limit),
       data: promotions
     });
-
+    
+    console.log('=== FIM: getPromotions ===');
   } catch (error) {
-    logger.error(`Erro ao listar promoções: ${error.message}`);
-    return res.status(500).json({
+    console.error('=== ERRO: getPromotions ===');
+    console.error('Mensagem de erro:', error.message);
+    console.error('Stack trace:', error.stack);
+    
+    res.status(500).json({
       success: false,
-      message: `Erro ao listar promoções: ${error.message}`
+      message: `Erro ao buscar promoções: ${error.message}`
     });
   }
 };

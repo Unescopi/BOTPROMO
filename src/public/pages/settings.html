@@ -33,6 +33,21 @@
         <i class="fas fa-database me-1"></i>Backup
       </button>
     </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="webhook-tab" data-bs-toggle="tab" data-bs-target="#webhook-tab-pane" type="button" role="tab">
+        <i class="fas fa-sync-alt me-1"></i>Webhook
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="diagnostics-tab" data-bs-toggle="tab" data-bs-target="#diagnostics-tab-pane" type="button" role="tab">
+        <i class="fas fa-stethoscope me-1"></i>Diagnóstico
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="export-tab" data-bs-toggle="tab" data-bs-target="#export-tab-pane" type="button" role="tab">
+        <i class="fas fa-file-export me-1"></i>Exportação
+      </button>
+    </li>
   </ul>
 
   <!-- Conteúdo das Tabs -->
@@ -224,6 +239,320 @@
             <button class="btn btn-outline-danger" id="clear-data-btn">
               <i class="fas fa-trash me-1"></i>Limpar Todos os Dados
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Webhook -->
+    <div class="tab-pane fade" id="webhook-tab-pane" role="tabpanel" aria-labelledby="webhook-tab" tabindex="0">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Monitoramento de Webhooks</h5>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <span>Esta seção mostra os eventos recebidos da Evolution API via webhook.</span>
+          </div>
+          
+          <div class="d-flex justify-content-between mb-3">
+            <h6>Eventos Recentes</h6>
+            <button class="btn btn-sm btn-outline-primary" id="refresh-webhook-events-btn">
+              <i class="fas fa-sync-alt me-1"></i>Atualizar
+            </button>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table table-sm table-striped table-hover">
+              <thead>
+                <tr>
+                  <th>Data/Hora</th>
+                  <th>Tipo de Evento</th>
+                  <th>IP de Origem</th>
+                  <th>Detalhes</th>
+                </tr>
+              </thead>
+              <tbody id="webhook-events-table">
+                <tr>
+                  <td colspan="4" class="text-center">Carregando eventos...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="mt-4">
+            <h6>Estatísticas de Eventos</h6>
+            <div class="row" id="webhook-stats">
+              <div class="col-md-4 mb-3">
+                <div class="card bg-light">
+                  <div class="card-body py-2">
+                    <h6 class="card-title">Tipos de Eventos</h6>
+                    <p class="card-text fs-4" id="webhook-event-types-count">0</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <div class="card bg-light">
+                  <div class="card-body py-2">
+                    <h6 class="card-title">Formatos de Mensagem</h6>
+                    <p class="card-text fs-4" id="webhook-message-formats-count">0</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4 mb-3">
+                <div class="card bg-light">
+                  <div class="card-body py-2">
+                    <h6 class="card-title">Eventos Recentes</h6>
+                    <p class="card-text fs-4" id="webhook-recent-events-count">0</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4">
+            <h6>Formatos de Mensagem Detectados</h6>
+            <div class="accordion" id="webhook-formats-accordion">
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#webhook-formats-collapse">
+                    Ver Formatos de Mensagem
+                  </button>
+                </h2>
+                <div id="webhook-formats-collapse" class="accordion-collapse collapse">
+                  <div class="accordion-body" id="webhook-formats-content">
+                    <div class="text-center">
+                      <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Diagnóstico -->
+    <div class="tab-pane fade" id="diagnostics-tab-pane" role="tabpanel" aria-labelledby="diagnostics-tab" tabindex="0">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Diagnóstico do Sistema</h5>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <span>Esta seção permite diagnosticar problemas no sistema.</span>
+          </div>
+          
+          <div class="d-flex justify-content-between mb-3">
+            <h6>Status do Sistema</h6>
+            <button class="btn btn-sm btn-primary" id="run-diagnostics-btn">
+              <i class="fas fa-stethoscope me-1"></i>Executar Diagnóstico
+            </button>
+          </div>
+          
+          <div class="row mb-4" id="diagnostics-summary">
+            <div class="col-md-4 mb-3">
+              <div class="card bg-light">
+                <div class="card-body py-2">
+                  <h6 class="card-title">Banco de Dados</h6>
+                  <p class="card-text">
+                    <span class="badge bg-secondary" id="database-status-badge">Não verificado</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="card bg-light">
+                <div class="card-body py-2">
+                  <h6 class="card-title">WhatsApp</h6>
+                  <p class="card-text">
+                    <span class="badge bg-secondary" id="whatsapp-status-badge">Não verificado</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="card bg-light">
+                <div class="card-body py-2">
+                  <h6 class="card-title">Sistema de Arquivos</h6>
+                  <p class="card-text">
+                    <span class="badge bg-secondary" id="filesystem-status-badge">Não verificado</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="accordion" id="diagnostics-accordion">
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#database-collapse">
+                  Banco de Dados
+                </button>
+              </h2>
+              <div id="database-collapse" class="accordion-collapse collapse">
+                <div class="accordion-body" id="database-details">
+                  <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Carregando...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#whatsapp-collapse">
+                  WhatsApp
+                </button>
+              </h2>
+              <div id="whatsapp-collapse" class="accordion-collapse collapse">
+                <div class="accordion-body" id="whatsapp-details">
+                  <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Carregando...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#filesystem-collapse">
+                  Sistema de Arquivos
+                </button>
+              </h2>
+              <div id="filesystem-collapse" class="accordion-collapse collapse">
+                <div class="accordion-body" id="filesystem-details">
+                  <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Carregando...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#system-collapse">
+                  Informações do Sistema
+                </button>
+              </h2>
+              <div id="system-collapse" class="accordion-collapse collapse">
+                <div class="accordion-body" id="system-details">
+                  <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Carregando...</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-4">
+            <h6>Relatórios de Diagnóstico</h6>
+            <div class="d-flex justify-content-between mb-3">
+              <p class="text-muted">Gere um relatório completo de diagnóstico para análise.</p>
+              <button class="btn btn-sm btn-outline-primary" id="generate-report-btn">
+                <i class="fas fa-file-medical-alt me-1"></i>Gerar Relatório
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Exportação -->
+    <div class="tab-pane fade" id="export-tab-pane" role="tabpanel" aria-labelledby="export-tab" tabindex="0">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Exportação de Dados</h5>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <span>Esta seção permite exportar dados do sistema em diferentes formatos.</span>
+          </div>
+          
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="mb-0">Clientes</h6>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted">Exportar dados de clientes em diferentes formatos.</p>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" id="export-clients-json-btn">
+                      <i class="fas fa-file-code me-1"></i>JSON
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" id="export-clients-csv-btn">
+                      <i class="fas fa-file-csv me-1"></i>CSV
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" id="export-clients-excel-btn">
+                      <i class="fas fa-file-excel me-1"></i>Excel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="mb-0">Promoções</h6>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted">Exportar dados de promoções em diferentes formatos.</p>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" id="export-promotions-json-btn">
+                      <i class="fas fa-file-code me-1"></i>JSON
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="mb-0">Mensagens</h6>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted">Exportar dados de mensagens em diferentes formatos.</p>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" id="export-messages-json-btn">
+                      <i class="fas fa-file-code me-1"></i>JSON
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-header">
+                  <h6 class="mb-0">Backup Completo</h6>
+                </div>
+                <div class="card-body">
+                  <p class="text-muted">Criar um backup completo do sistema.</p>
+                  <button class="btn btn-sm btn-primary" id="create-backup-btn">
+                    <i class="fas fa-database me-1"></i>Criar Backup
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

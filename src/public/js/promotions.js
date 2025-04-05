@@ -76,85 +76,34 @@ const PromotionsManager = {
   },
   
   async loadPromotions() {
-    const promotionsContainer = document.getElementById('promotions-list');
-    if (!promotionsContainer) return;
-    
-    // Mostrar o indicador de carregamento
-    promotionsContainer.innerHTML = `
-      <div class="text-center py-4">
-        <div class="spinner-border text-primary" role="status">
-          <span class="visually-hidden">Carregando...</span>
-        </div>
-      </div>
-    `;
-    
-    // Obtém os parâmetros de filtro, se houver
-    const statusFilter = document.getElementById('status-filter')?.value || '';
-    
-    // Constrói o endpoint com os parâmetros
-    let endpoint = '/promotions';
-    if (statusFilter) {
-      endpoint += `?status=${statusFilter}`;
-    }
-    
     try {
+      console.log('=== INÍCIO: loadPromotions ===');
+      
+      // Mostrar indicador de carregamento
+      const tableBody = document.querySelector('.promotions-table tbody');
+      if (tableBody) {
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Carregando promoções...</td></tr>';
+      }
+      
       // Verificar se o usuário está autenticado
       if (!Auth.isAuthenticated()) {
+        console.log('Usuário não autenticado, redirecionando para login');
         Auth.logout();
         return;
       }
       
-      // Usar API centralizada
-      const promotions = await API.get(endpoint);
+      // Usar o módulo API centralizado para buscar promoções
+      console.log('Buscando promoções da API');
+      const promotions = await API.promotions.getAll();
+      console.log('Promoções recebidas da API:', promotions);
       
-      if (promotions.length === 0) {
-        promotionsContainer.innerHTML = `
-          <div class="alert alert-info text-center py-4">
-            <i class="fas fa-info-circle me-2"></i>Nenhuma promoção encontrada
-          </div>
-        `;
-        return;
-      }
+      // Atualizar a tabela com as promoções
+      this.renderPromotionsTable(promotions);
       
-      // Renderizar a lista de promoções
-      promotionsContainer.innerHTML = promotions.map(promotion => `
-        <div class="card mb-3">
-          <div class="card-body">
-            <h5 class="card-title">${promotion.name}</h5>
-            <h6 class="card-subtitle mb-2 text-muted">
-              <span class="badge ${this.getStatusBadgeClass(promotion.status)}">${this.getStatusLabel(promotion.status)}</span>
-            </h6>
-            <p class="card-text">
-              <small class="text-muted">Criado em: ${this.formatDate(promotion.createdAt)}</small><br>
-              <small class="text-muted">Agendado para: ${promotion.scheduledFor ? this.formatDateTime(promotion.scheduledFor) : '-'}</small><br>
-              <small class="text-muted">Envios: ${promotion.sentCount || 0}</small>
-            </p>
-            <div class="btn-group">
-              <button class="btn btn-sm btn-outline-primary" onclick="PromotionsManager.viewPromotion('${promotion._id}')">
-                <i class="fas fa-eye"></i> Ver
-              </button>
-              ${promotion.status === 'draft' ? `
-                <button class="btn btn-sm btn-outline-secondary" onclick="PromotionsManager.editPromotion('${promotion._id}')">
-                  <i class="fas fa-edit"></i> Editar
-                </button>
-              ` : ''}
-              ${promotion.status === 'scheduled' ? `
-                <button class="btn btn-sm btn-outline-warning" onclick="PromotionsManager.cancelPromotion('${promotion._id}')">
-                  <i class="fas fa-ban"></i> Cancelar
-                </button>
-              ` : ''}
-              ${['draft', 'sent', 'canceled', 'failed'].includes(promotion.status) ? `
-                <button class="btn btn-sm btn-outline-danger" onclick="PromotionsManager.deletePromotion('${promotion._id}')">
-                  <i class="fas fa-trash"></i> Excluir
-                </button>
-              ` : ''}
-            </div>
-          </div>
-        </div>
-      `).join('');
-      
+      console.log('=== FIM: loadPromotions ===');
     } catch (error) {
-      console.error('Erro ao carregar promoções:', error);
+      console.error('=== ERRO: loadPromotions ===');
+      console.error('Mensagem de erro:', error);
       
       // Verificar se é um erro de autenticação
       if (error.message && error.message.includes('Sessão expirada')) {
@@ -162,12 +111,12 @@ const PromotionsManager = {
         return;
       }
       
-      promotionsContainer.innerHTML = `
-        <div class="alert alert-danger text-center py-4">
-          <i class="fas fa-exclamation-triangle me-2"></i>
+      const tableBody = document.querySelector('.promotions-table tbody');
+      if (tableBody) {
+        tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">
           Erro ao carregar promoções: ${error.message || 'Erro desconhecido'}
-        </div>
-      `;
+        </td></tr>`;
+      }
     }
   },
   

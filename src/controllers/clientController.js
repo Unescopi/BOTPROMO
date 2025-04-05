@@ -200,13 +200,27 @@ exports.importClients = async (req, res) => {
 // Listar todos os clientes com paginação e filtros
 exports.getClients = async (req, res) => {
   try {
+    console.log('=== INÍCIO: getClients ===');
+    
+    // Opções de paginação
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
     
-    // Filtros
-    const filter = { };
+    // Opções de filtro
+    const filter = {};
     
+    // Filtro por status
+    if (req.query.status) {
+      filter.status = req.query.status;
+    }
+    
+    // Filtro por tags
+    if (req.query.tag) {
+      filter.tags = req.query.tag;
+    }
+    
+    // Filtro por busca
     if (req.query.search) {
       const searchRegex = new RegExp(req.query.search, 'i');
       filter.$or = [
@@ -216,47 +230,38 @@ exports.getClients = async (req, res) => {
       ];
     }
     
-    if (req.query.status) {
-      filter.status = req.query.status;
-    }
+    console.log('Filtros aplicados:', filter);
     
-    if (req.query.tag) {
-      filter.tags = req.query.tag;
-    }
-    
-    // Contagem total para paginação
-    const total = await Client.countDocuments(filter);
-    
-    // Consulta com paginação e ordenação
+    // Executar a consulta
     const clients = await Client.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
     
-    // Informações de paginação
-    const totalPages = Math.ceil(total / limit);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
+    // Contar total de registros
+    const total = await Client.countDocuments(filter);
     
-    return res.status(200).json({
+    console.log(`Encontrados ${clients.length} clientes de um total de ${total}`);
+    
+    // Retornar os resultados
+    res.status(200).json({
       success: true,
       count: clients.length,
       total,
-      pagination: {
-        page,
-        limit,
-        totalPages,
-        hasNextPage,
-        hasPrevPage
-      },
+      page,
+      pages: Math.ceil(total / limit),
       data: clients
     });
     
+    console.log('=== FIM: getClients ===');
   } catch (error) {
-    logger.error(`Erro ao listar clientes: ${error.message}`);
-    return res.status(500).json({ 
-      success: false, 
-      message: `Erro ao listar clientes: ${error.message}` 
+    console.error('=== ERRO: getClients ===');
+    console.error('Mensagem de erro:', error.message);
+    console.error('Stack trace:', error.stack);
+    
+    res.status(500).json({
+      success: false,
+      message: `Erro ao buscar clientes: ${error.message}`
     });
   }
 };

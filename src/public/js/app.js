@@ -75,21 +75,75 @@ const App = {
   },
 
   // Carrega os dados para o dashboard
-  async loadDashboardData() {
+  async loadDashboard() {
+    console.log('=== INÍCIO: loadDashboard ===');
+    
     try {
-      // Obter estatísticas gerais
-      const stats = await this.fetchStats();
+      // Carregar estatísticas
+      console.log('Carregando estatísticas...');
+      const stats = await API.get('/stats');
+      console.log('Estatísticas recebidas:', stats);
       
-      // Atualiza as estatísticas no dashboard
-      this.updateDashboardStats(stats);
+      // Atualizar contadores
+      if (stats) {
+        // Clientes
+        const clientCount = document.querySelector('.client-count');
+        if (clientCount) {
+          clientCount.textContent = stats.clients?.total || 0;
+          console.log('Contador de clientes atualizado:', stats.clients?.total || 0);
+        }
+        
+        // Promoções ativas
+        const activePromos = document.querySelector('.active-promos');
+        if (activePromos) {
+          activePromos.textContent = stats.promotions?.active || 0;
+          console.log('Contador de promoções ativas atualizado:', stats.promotions?.active || 0);
+        }
+        
+        // Mensagens enviadas
+        const messagesSent = document.querySelector('.messages-sent');
+        if (messagesSent) {
+          messagesSent.textContent = stats.messages?.sent || 0;
+          console.log('Contador de mensagens enviadas atualizado:', stats.messages?.sent || 0);
+        }
+      }
       
-      // Carrega promoções recentes e próximas
-      this.loadRecentPromotions();
-      this.loadUpcomingPromotions();
+      // Carregar promoções recentes
+      console.log('Carregando promoções recentes...');
+      const recentPromos = await API.promotions.getRecent();
+      console.log('Promoções recentes recebidas:', recentPromos);
       
+      // Atualizar lista de promoções recentes
+      const recentPromosList = document.getElementById('recent-promos');
+      if (recentPromosList && recentPromos && recentPromos.length > 0) {
+        recentPromosList.innerHTML = recentPromos.map(promo => `
+          <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="mb-1">${promo.name}</h6>
+              <span class="badge bg-${promo.status === 'Ativa' ? 'success' : 
+                                      promo.status === 'Enviada' ? 'primary' : 
+                                      'warning text-dark'}">${promo.status}</span>
+            </div>
+            <p class="mb-1 small text-muted">
+              <i class="fas fa-calendar-alt me-1"></i>${new Date(promo.date).toLocaleDateString('pt-BR')}
+              <i class="fas fa-users ms-2 me-1"></i>${promo.recipients} destinatários
+            </p>
+          </div>
+        `).join('');
+        console.log('Lista de promoções recentes atualizada');
+      } else if (recentPromosList) {
+        recentPromosList.innerHTML = `
+          <div class="list-group-item text-center py-5">
+            <i class="fas fa-info-circle me-2"></i>Nenhuma promoção recente
+          </div>
+        `;
+        console.log('Nenhuma promoção recente encontrada');
+      }
+      
+      console.log('=== FIM: loadDashboard ===');
     } catch (error) {
-      console.error('Erro ao carregar dados do dashboard:', error);
-      this.showToast('Erro ao carregar dados do dashboard. Verifique a conexão com o servidor.', 'danger');
+      console.error('=== ERRO: loadDashboard ===');
+      console.error('Mensagem de erro:', error);
     }
   },
 

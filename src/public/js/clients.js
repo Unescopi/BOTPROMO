@@ -589,6 +589,73 @@ const ClientsManager = {
     document.getElementById('client-form').reset();
     document.getElementById('client-id').value = '';
     document.getElementById('client-modal-title').innerHTML = '<i class="fas fa-user-plus me-2"></i>Novo Cliente';
+  },
+  
+  renderClientsTable(clients) {
+    console.log('=== INÍCIO: renderClientsTable ===');
+    console.log('Clientes recebidos:', clients);
+    
+    const tableBody = document.getElementById('clients-table-body');
+    if (!tableBody) {
+      console.error('Elemento clients-table-body não encontrado!');
+      return;
+    }
+    
+    if (!clients || clients.length === 0) {
+      console.log('Nenhum cliente encontrado');
+      tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhum cliente encontrado</td></tr>';
+      return;
+    }
+    
+    // Limpar a tabela
+    tableBody.innerHTML = '';
+    
+    // Adicionar cada cliente à tabela
+    clients.forEach(client => {
+      console.log('Renderizando cliente:', client);
+      
+      const row = document.createElement('tr');
+      row.dataset.id = client._id;
+      
+      // Adicionar as células
+      row.innerHTML = `
+        <td>
+          <div class="form-check">
+            <input class="form-check-input client-checkbox" type="checkbox" value="${client._id}">
+          </div>
+        </td>
+        <td>${client.name}</td>
+        <td>${client.phone}</td>
+        <td>${client.email || '-'}</td>
+        <td>
+          <span class="badge ${this.getStatusBadgeClass(client.status)}">
+            ${this.getStatusLabel(client.status)}
+          </span>
+        </td>
+        <td>
+          ${client.tags && client.tags.length > 0 
+            ? client.tags.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('') 
+            : '-'}
+        </td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-primary edit-client-btn" data-client-id="${client._id}">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-outline-danger delete-client-btn" data-client-id="${client._id}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </td>
+      `;
+      
+      tableBody.appendChild(row);
+    });
+    
+    // Adicionar manipuladores de eventos para os botões
+    this.addClientButtonHandlers();
+    
+    console.log('=== FIM: renderClientsTable ===');
   }
 };
 

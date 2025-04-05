@@ -10,6 +10,9 @@ const clientRoutes = require('./client');
 const messageRoutes = require('./message');
 const promotionRoutes = require('./promotion');
 const authRoutes = require('./auth');
+const webhookRoutes = require('./webhook');
+const diagnosticRoutes = require('./diagnostic');
+const exportRoutes = require('./export');
 const mediaController = require('../controllers/mediaController');
 const auth = require('../middleware/auth');
 
@@ -19,6 +22,9 @@ router.use('/auth', authRoutes); // Removido o prefixo 'api' pois já estamos em
 router.use('/clients', clientRoutes);
 router.use('/messages', messageRoutes);
 router.use('/promotions', promotionRoutes);
+router.use('/webhook', webhookRoutes);
+router.use('/diagnostics', diagnosticRoutes);
+router.use('/export', exportRoutes);
 
 // Rotas para gerenciamento de mídia
 router.post('/media/upload', auth.verifyToken, mediaController.uploadMedia);
@@ -31,9 +37,12 @@ router.use('/', apiRoutes);
 
 // Adicionar um log para verificar as rotas registradas
 console.log('=== ROTAS REGISTRADAS ===');
-console.log('Rotas de autenticação:', Object.keys(authRoutes.stack.map(r => r.route).filter(r => r)).map(r => r.path));
-console.log('Rotas de clientes:', Object.keys(clientRoutes.stack.map(r => r.route).filter(r => r)).map(r => r.path));
-console.log('Rotas de promoções:', Object.keys(promotionRoutes.stack.map(r => r.route).filter(r => r)).map(r => r.path));
-console.log('Rotas de mensagens:', Object.keys(messageRoutes.stack.map(r => r.route).filter(r => r)).map(r => r.path));
+console.log('Rotas de autenticação:', authRoutes.stack.map(r => r.route).filter(Boolean).map(r => r.path));
+console.log('Rotas de clientes:', clientRoutes.stack.map(r => r.route).filter(Boolean).map(r => r.path));
+console.log('Rotas de promoções:', promotionRoutes.stack.map(r => r.route).filter(Boolean).map(r => r.path));
+console.log('Rotas de mensagens:', messageRoutes.stack.map(r => r.route).filter(Boolean).map(r => r.path));
+console.log('Rotas de webhook:', webhookRoutes.stack.map(r => r.route).filter(Boolean).map(r => r.path));
+console.log('Rotas de diagnóstico:', diagnosticRoutes.stack.map(r => r.route).filter(Boolean).map(r => r.path));
+console.log('Rotas de exportação:', exportRoutes.stack.map(r => r.route).filter(Boolean).map(r => r.path));
 
 module.exports = router;

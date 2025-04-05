@@ -4,6 +4,7 @@
 const logger = require('../utils/logger');
 const Message = require('../models/Message');
 const Client = require('../models/Client');
+const webhookMonitor = require('../utils/webhookMonitor');
 
 /**
  * Processa webhooks recebidos da Evolution API
@@ -11,125 +12,45 @@ const Client = require('../models/Client');
 exports.handleWebhook = async (req, res) => {
   try {
     // Log do corpo completo do webhook recebido
-    logger.info(`Webhook recebido da Evolution API`);
-    logger.debug(`Dados do webhook: ${JSON.stringify(req.body)}`);
+    logger.info('Webhook recebido da Evolution API');
     
-    // Responde imediatamente com sucesso
-    res.status(200).json({ success: true, message: 'Webhook recebido com sucesso' });
+    // Registrar o evento no monitor de webhooks
+    const eventType = webhookMonitor.logWebhookEvent(req, req.body);
     
-    // Processa os dados do webhook após responder
-    const webhookData = req.body;
-    
-    // Processa o evento conforme o caso
-    if (webhookData.event === 'messages.upsert' && webhookData.data.messages) {
-      // Processa as mensagens recebidas
-      for (const message of webhookData.data.messages) {
-        if (!message.key.fromMe) {
-          await processIncomingMessage(message);
-        }
-      }
-    } 
-    else if (webhookData.event === 'messages.update') {
-      // Atualiza o status das mensagens
-      for (const update of webhookData.data) {
-        await updateMessageStatus(update);
-      }
-    }
-    else if (webhookData.event === 'connection.update') {
-      // Registra mudanças no status da conexão
-      logger.info(`Status da conexão WhatsApp: ${webhookData.data.connection}`);
+    // Processar o webhook com base no tipo de evento
+    if (eventType.startsWith('message_status_')) {
+      await processMessageStatus(req.body);
+    } else if (eventType === 'message_received') {
+      await processIncomingMessage(req.body);
     }
     
+    // Responder com sucesso
+    res.status(200).json({
+      success: true,
+      message: 'Webhook processado com sucesso'
+    });
   } catch (error) {
     logger.error(`Erro ao processar webhook: ${error.message}`);
     logger.error(error.stack);
     
-    // Se ainda não enviou a resposta, envia um erro
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, message: 'Erro ao processar webhook' });
-    }
+    // Mesmo em caso de erro, respondemos com 200 para a Evolution API
+    // não tentar reenviar o webhook (conforme documentação)
+    res.status(200).json({
+      success: false,
+      message: `Erro ao processar webhook: ${error.message}`
+    });
   }
 };
 
 /**
- * Processa uma mensagem recebida
+ * Processa atualizações de status de mensagem
+ * @param {Object} data - Dados do webhook
  */
-async function processIncomingMessage(message) {
+async function processMessageStatus(data) {
   try {
-    // Extrai informações básicas da mensagem
-    const sender = message.key.remoteJid;
-    let messageContent = '';
-    
-    // Extrai o conteúdo da mensagem conforme o tipo
-    if (message.message?.conversation) {
-      messageContent = message.message.conversation;
-    } 
-    else if (message.message?.extendedTextMessage?.text) {
-      messageContent = message.message.extendedTextMessage.text;
-    } 
-    else if (message.message?.imageMessage) {
-      messageContent = message.message.imageMessage.caption || '[Imagem]';
-    }
-    else if (message.message?.videoMessage) {
-      messageContent = message.message.videoMessage.caption || '[Vídeo]';
-    }
-    else if (message.message?.audioMessage) {
-      messageContent = '[Áudio]';
-    }
-    else if (message.message?.documentMessage) {
-      messageContent = '[Documento]';
-    }
-    else {
-      messageContent = '[Mensagem não identificada]';
-    }
-    
-    logger.info(`Mensagem recebida de ${sender}: ${messageContent}`);
-    
-    // Salva a mensagem no banco de dados
-    const newMessage = new Message({
-      sender,
-      body: messageContent,
-      direction: 'received',
-      status: 'received',
-      timestamp: new Date(),
-      rawData: message,
-      waMessageId: message.key.id
-    });
-    
-    await newMessage.save();
-    logger.info(`Mensagem salva no banco de dados: ${newMessage._id}`);
-    
-    // Cria um cliente se ainda não existir
-    const phone = sender.split('@')[0];
-    const clientExists = await Client.findOne({ phone });
-    
-    if (!clientExists) {
-      const newClient = new Client({
-        phone,
-        name: phone, // Nome provisório
-        source: 'whatsapp',
-        registrationDate: new Date()
-      });
-      
-      await newClient.save();
-      logger.info(`Novo cliente criado: ${phone}`);
-    }
-    
-    // Não respondemos automaticamente - apenas registramos as mensagens
-    
-  } catch (error) {
-    logger.error(`Erro ao processar mensagem: ${error.message}`);
-  }
-}
-
-/**
- * Atualiza o status de uma mensagem
- */
-async function updateMessageStatus(messageUpdate) {
-  try {
-    // Extrai o ID da mensagem e o novo status
-    const messageId = messageUpdate.key.id;
-    const status = messageUpdate.update.status || 'unknown';
+    // Extrair o ID da mensagem e o status
+    const messageId = data.id;
+    const status = data.status;
     
     logger.info(`Atualizando status da mensagem ${messageId} para ${status}`);
     
@@ -143,3 +64,159 @@ async function updateMessageStatus(messageUpdate) {
     logger.error(`Erro ao atualizar status da mensagem: ${error.message}`);
   }
 }
+
+/**
+ * Processa mensagens recebidas
+ * @param {Object} data - Dados do webhook
+ */
+async function processIncomingMessage(data) {
+  try {
+    // Extrair informações da mensagem
+    const remoteJid = data.key.remoteJid;
+    const messageId = data.key.id;
+    
+    // Extrair o número de telefone do remoteJid (formato: 5511999999999@s.whatsapp.net)
+    const phone = remoteJid.split('@')[0];
+    
+    logger.info(`Mensagem recebida de ${phone}, ID: ${messageId}`);
+    
+    // Verificar se o cliente existe
+    let client = await Client.findOne({ phone });
+    
+    if (!client) {
+      logger.info(`Cliente não encontrado para o telefone ${phone}, criando novo registro`);
+      
+      // Extrair o nome do contato, se disponível
+      let name = 'Cliente';
+      if (data.pushName) {
+        name = data.pushName;
+      }
+      
+      // Criar um novo cliente
+      client = await Client.create({
+        name,
+        phone,
+        source: 'whatsapp',
+        status: 'active',
+        tags: ['whatsapp-auto']
+      });
+      
+      logger.info(`Novo cliente criado: ${client._id}`);
+    }
+    
+    // Extrair o conteúdo da mensagem
+    let messageContent = '';
+    let messageType = 'unknown';
+    
+    if (data.message) {
+      if (data.message.conversation) {
+        messageContent = data.message.conversation;
+        messageType = 'text';
+      } else if (data.message.imageMessage) {
+        messageContent = data.message.imageMessage.caption || 'Imagem recebida';
+        messageType = 'image';
+      } else if (data.message.videoMessage) {
+        messageContent = data.message.videoMessage.caption || 'Vídeo recebido';
+        messageType = 'video';
+      } else if (data.message.audioMessage) {
+        messageContent = 'Áudio recebido';
+        messageType = 'audio';
+      } else if (data.message.documentMessage) {
+        messageContent = data.message.documentMessage.fileName || 'Documento recebido';
+        messageType = 'document';
+      } else if (data.message.stickerMessage) {
+        messageContent = 'Sticker recebido';
+        messageType = 'sticker';
+      } else {
+        messageContent = 'Mensagem de tipo desconhecido';
+      }
+    }
+    
+    // Registrar a mensagem recebida
+    const message = await Message.create({
+      client: client._id,
+      direction: 'received',
+      content: messageContent,
+      type: messageType,
+      waMessageId: messageId,
+      status: 'received',
+      metadata: {
+        rawData: data
+      }
+    });
+    
+    logger.info(`Mensagem registrada: ${message._id}`);
+    
+    // Aqui você pode adicionar lógica para resposta automática
+    // ou processamento adicional da mensagem
+    
+  } catch (error) {
+    logger.error(`Erro ao processar mensagem recebida: ${error.message}`);
+    logger.error(error.stack);
+  }
+}
+
+/**
+ * Obtém estatísticas de eventos de webhook
+ */
+exports.getWebhookStats = async (req, res) => {
+  try {
+    const stats = webhookMonitor.getStats();
+    
+    res.status(200).json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    logger.error(`Erro ao obter estatísticas de webhook: ${error.message}`);
+    
+    res.status(500).json({
+      success: false,
+      message: `Erro ao obter estatísticas: ${error.message}`
+    });
+  }
+};
+
+/**
+ * Obtém eventos recentes de webhook
+ */
+exports.getRecentEvents = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+    const events = webhookMonitor.getRecentEvents(limit);
+    
+    res.status(200).json({
+      success: true,
+      count: events.length,
+      data: events
+    });
+  } catch (error) {
+    logger.error(`Erro ao obter eventos recentes: ${error.message}`);
+    
+    res.status(500).json({
+      success: false,
+      message: `Erro ao obter eventos recentes: ${error.message}`
+    });
+  }
+};
+
+/**
+ * Obtém exemplos de formatos de mensagem
+ */
+exports.getMessageFormats = async (req, res) => {
+  try {
+    const formats = webhookMonitor.getMessageFormatExamples();
+    
+    res.status(200).json({
+      success: true,
+      data: formats
+    });
+  } catch (error) {
+    logger.error(`Erro ao obter formatos de mensagem: ${error.message}`);
+    
+    res.status(500).json({
+      success: false,
+      message: `Erro ao obter formatos de mensagem: ${error.message}`
+    });
+  }
+};

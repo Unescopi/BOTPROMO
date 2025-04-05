@@ -40,12 +40,28 @@ if (isEasyPanel && easyPanelConfig.proxy && easyPanelConfig.proxy.trustProxy) {
 
 // Middleware
 app.use(cors({
-  origin: isEasyPanel && easyPanelConfig.security && easyPanelConfig.security.cors 
-    ? easyPanelConfig.security.cors.origin 
-    : '*',
-  credentials: isEasyPanel && easyPanelConfig.security && easyPanelConfig.security.cors 
-    ? easyPanelConfig.security.cors.credentials 
-    : true
+  origin: function(origin, callback) {
+    console.log('=== REQUISIÇÃO CORS ===');
+    console.log('Origem:', origin);
+    
+    // Permitir requisições sem origem (como aplicativos móveis ou Postman)
+    if (!origin) return callback(null, true);
+    
+    // Verificar se a origem está na lista de permitidas
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://botpromo-cafeteria-bot.pn0lhe.easypanel.host'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      console.error(`Origem não permitida: ${origin}`);
+      callback(new Error('Origem não permitida pelo CORS'));
+    }
+  },
+  credentials: true
 }));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -79,12 +95,21 @@ mongoose.connect(process.env.MONGODB_URI)
     console.log('Conectado ao MongoDB com sucesso!');
     console.log(`URI do MongoDB: ${process.env.MONGODB_URI.replace(/mongodb:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@')}`);
     
-    // Verificar se podemos acessar a coleção de clientes
-    const Client = require('./src/models/Client');
-    return Client.countDocuments();
+    // Verificar se podemos acessar as coleções
+    return Promise.all([
+      mongoose.connection.db.listCollections().toArray(),
+      mongoose.connection.db.collection('clients').countDocuments(),
+      mongoose.connection.db.collection('promotions').countDocuments(),
+      mongoose.connection.db.collection('messages').countDocuments()
+    ]);
   })
-  .then(count => {
-    console.log(`Número de clientes no banco de dados: ${count}`);
+  .then(([collections, clientsCount, promotionsCount, messagesCount]) => {
+    console.log('=== COLEÇÕES NO MONGODB ===');
+    console.log('Coleções disponíveis:', collections.map(c => c.name).join(', '));
+    console.log('Contagem de documentos:');
+    console.log(`- Clientes: ${clientsCount}`);
+    console.log(`- Promoções: ${promotionsCount}`);
+    console.log(`- Mensagens: ${messagesCount}`);
   })
   .catch(err => {
     console.error('=== ERRO NA CONEXÃO COM MONGODB ===');
@@ -94,7 +119,8 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Rotas da API
 app.use('/api', routes);
-console.log('Rotas da API registradas em /api');
+console.log('=== PREFIXO DA API ===');
+console.log('Prefixo configurado: /api');
 
 // Adicione este código para listar todas as rotas registradas
 app.get('/api/routes', (req, res) => {

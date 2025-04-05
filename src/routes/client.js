@@ -15,8 +15,20 @@ console.log('PUT /clients/:id - Atualizar cliente');
 console.log('DELETE /clients/:id - Excluir cliente');
 
 // Rotas protegidas
-router.post('/', auth.verifyToken, clientController.createClient);
-router.get('/', auth.verifyToken, clientController.getClients);
+router.post('/', auth.verifyToken, (req, res, next) => {
+  console.log('=== REQUISIÇÃO POST /clients ===');
+  console.log('Body:', req.body);
+  console.log('User ID:', req.user?.id);
+  next();
+}, clientController.createClient);
+
+router.get('/', auth.verifyToken, (req, res, next) => {
+  console.log('=== REQUISIÇÃO GET /clients ===');
+  console.log('Query params:', req.query);
+  console.log('User ID:', req.user?.id);
+  next();
+}, clientController.getClients);
+
 router.get('/:id', auth.verifyToken, clientController.getClient);
 router.put('/:id', auth.verifyToken, clientController.updateClient);
 router.delete('/:id', auth.verifyToken, clientController.deleteClient);
