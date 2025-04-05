@@ -328,14 +328,72 @@ const App = {
       
       // Adicionar timeout para evitar espera infinita
       const statsPromise = Promise.race([
-        API.get('/stats'),
+        this.fetchStats(),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout ao carregar estatísticas')), 10000)
         )
       ]);
       
-      const stats = await statsPromise;
-      console.log('Estatísticas recebidas:', stats);
+      let stats = await statsPromise;
+      console.log('Estatísticas recebidas (formato original):', stats);
+      console.log('Tipo de dados recebidos:', typeof stats);
+      
+      // Atualizar painel de diagnóstico se a função existir globalmente
+      if (typeof updateDiagnosticPanel === 'function') {
+        console.log('Atualizando painel de diagnóstico...');
+        updateDiagnosticPanel(stats);
+      } else {
+        console.log('Função updateDiagnosticPanel não encontrada');
+      }
+      
+      // Atualizar o elemento api-raw-data diretamente se existir
+      const rawDataElement = document.getElementById('api-raw-data');
+      if (rawDataElement) {
+        try {
+          rawDataElement.textContent = JSON.stringify(stats, null, 2);
+        } catch (e) {
+          rawDataElement.textContent = 'Erro ao exibir dados: ' + e.message;
+        }
+      }
+      
+      // Tentar extrair os dados se estiverem em um formato aninhado
+      if (stats && stats.data) {
+        console.log('Dados encontrados em stats.data, extraindo...');
+        stats = stats.data;
+      }
+
+      // Tentar extrair os dados se estiverem em um formato diferente
+      if (stats && stats.success && !stats.clients && !stats.messages) {
+        // Procurar por propriedades relevantes em diferentes locais
+        console.log('Buscando dados em diferentes propriedades do objeto stats...');
+        const extractedStats = {};
+        
+        // Buscar em diferentes locais possíveis
+        if (stats.clients) extractedStats.clients = stats.clients;
+        else if (stats.data && stats.data.clients) extractedStats.clients = stats.data.clients;
+        else if (stats.total && stats.total.clients) extractedStats.clients = stats.total.clients;
+        
+        if (stats.promotions) extractedStats.promotions = stats.promotions;
+        else if (stats.data && stats.data.promotions) extractedStats.promotions = stats.data.promotions;
+        else if (stats.total && stats.total.promotions) extractedStats.promotions = stats.total.promotions;
+        
+        if (stats.messages) extractedStats.messages = stats.messages;
+        else if (stats.data && stats.data.messages) extractedStats.messages = stats.data.messages;
+        else if (stats.total && stats.total.messages) extractedStats.messages = stats.data.messages;
+        
+        if (stats.deliveryRate) extractedStats.deliveryRate = stats.deliveryRate;
+        else if (stats.data && stats.data.deliveryRate) extractedStats.deliveryRate = stats.data.deliveryRate;
+        
+        console.log('Dados extraídos de diferentes propriedades:', extractedStats);
+        
+        // Se encontramos algum dado, use-o
+        if (Object.keys(extractedStats).length > 0) {
+          stats = extractedStats;
+        }
+      }
+      
+      // Adicionar painel de depuração ao dashboard se não existir
+      this.addDebugPanel(stats);
       
       // Atualizar contadores
       if (stats) {
@@ -386,6 +444,51 @@ const App = {
       
       // Mostrar mensagem de erro
       this.showToast('Erro ao carregar dados do dashboard. Tente novamente.', 'danger');
+    }
+  },
+
+  // Adiciona um painel de depuração ao dashboard
+  addDebugPanel(data) {
+    // Verificar se já existe um painel de debug
+    let debugPanel = document.getElementById('debug-panel');
+    
+    if (!debugPanel) {
+      console.log('Criando painel de depuração...');
+      // Criar o painel de debug
+      debugPanel = document.createElement('div');
+      debugPanel.id = 'debug-panel';
+      debugPanel.className = 'card mt-4';
+      debugPanel.innerHTML = `
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Painel de Depuração</h5>
+          <button class="btn btn-sm btn-outline-secondary" id="toggle-debug">Mostrar/Ocultar</button>
+        </div>
+        <div class="card-body">
+          <pre id="debug-output" style="max-height: 200px; overflow: auto;"></pre>
+        </div>
+      `;
+      
+      // Adicionar ao final da página de dashboard
+      const dashboardPage = document.getElementById('dashboard-page');
+      if (dashboardPage) {
+        dashboardPage.appendChild(debugPanel);
+        
+        // Adicionar evento para mostrar/ocultar conteúdo
+        document.getElementById('toggle-debug').addEventListener('click', () => {
+          const output = document.getElementById('debug-output');
+          output.style.display = output.style.display === 'none' ? 'block' : 'none';
+        });
+      }
+    }
+    
+    // Atualizar o conteúdo de debug
+    const debugOutput = document.getElementById('debug-output');
+    if (debugOutput) {
+      try {
+        debugOutput.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        debugOutput.textContent = 'Erro ao serializar dados: ' + e.message;
+      }
     }
   },
 

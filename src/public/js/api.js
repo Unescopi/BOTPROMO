@@ -137,6 +137,12 @@ const API = {
   async get(endpoint) {
     try {
       console.log(`=== INÍCIO API.get: ${endpoint} ===`);
+      
+      // Adicionar timestamp para evitar cache
+      const timestamp = new Date().getTime();
+      const url = `${this.baseUrl}${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${timestamp}`;
+      
+      console.log(`Requisição para URL: ${url}`);
       console.log('Cabeçalhos:', this.getAuthHeaders());
       
       // Adicionar timeout para evitar requisições que nunca respondem
@@ -144,16 +150,16 @@ const API = {
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos
       
       // Realizar a requisição com timeout
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      const response = await fetch(url, {
         headers: this.getAuthHeaders(),
-        signal: controller.signal
+        signal: controller.signal,
+        cache: 'no-store' // Instruir o navegador a não usar cache
       });
       
       // Limpar o timeout
       clearTimeout(timeoutId);
       
       console.log('Status da resposta:', response.status);
-      console.log('Headers da resposta:', Object.fromEntries([...response.headers.entries()]));
       
       if (response.status === 401) {
         // Token expirado ou inválido
@@ -162,30 +168,24 @@ const API = {
       }
       
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Erro na resposta:', errorData);
-        throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
+        throw new Error(`Erro HTTP: ${response.status}`);
       }
       
-      // Clonar a resposta para verificar o conteúdo
-      const responseClone = response.clone();
-      const rawText = await responseClone.text();
-      console.log('Texto bruto da resposta:', rawText);
-      
-      // Se a resposta for vazia, retornar um objeto vazio
-      if (!rawText) {
-        console.log('Resposta vazia, retornando objeto vazio');
-        return {};
-      }
-      
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch (e) {
-        console.error('Erro ao parsear JSON:', e);
-        console.log('Conteúdo que causou erro:', rawText);
-        throw new Error('Erro ao processar resposta do servidor: JSON inválido');
-      }
+      // Método simplificado para obter a resposta
+      const data = await response.json().catch(e => {
+        console.warn('Erro ao parsear resposta JSON, tentando text', e);
+        return response.text().then(text => {
+          if (!text) return {};
+          
+          // Tentar parsear novamente
+          try {
+            return JSON.parse(text);
+          } catch (e2) {
+            console.error('Falha ao parsear texto como JSON', e2);
+            return { text };
+          }
+        });
+      });
       
       console.log('Dados da resposta:', data);
       console.log(`=== FIM API.get: ${endpoint} ===`);
@@ -199,7 +199,8 @@ const API = {
         console.error('A requisição excedeu o tempo limite de 15 segundos');
       }
       
-      throw error;
+      // Retornar nulo em vez de propagar o erro
+      return null;
     }
   },
 

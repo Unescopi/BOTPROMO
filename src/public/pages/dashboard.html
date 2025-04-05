@@ -132,4 +132,106 @@
       </div>
     </div>
   </div>
+  
+  <!-- Painel de Diagnóstico -->
+  <div class="card mt-4" id="diagnostic-panel">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Diagnóstico do Sistema</h5>
+      <button class="btn btn-sm btn-outline-secondary" id="refresh-stats">
+        <i class="fas fa-sync-alt me-1"></i>Atualizar Dados
+      </button>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-4">
+          <div class="card mb-3">
+            <div class="card-header bg-light">Estado da Conexão</div>
+            <div class="card-body">
+              <p><strong>API:</strong> <span id="api-status">Verificando...</span></p>
+              <p><strong>MongoDB:</strong> <span id="db-status">Verificando...</span></p>
+              <p><strong>Webhook:</strong> <span id="webhook-connection-status">Verificando...</span></p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header bg-light">Dados Brutos da API</div>
+            <div class="card-body">
+              <pre id="api-raw-data" style="max-height: 200px; overflow: auto;">Aguardando dados...</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<script>
+  // Script para inicializar o painel de diagnóstico
+  document.addEventListener('DOMContentLoaded', function() {
+    const refreshButton = document.getElementById('refresh-stats');
+    if (refreshButton) {
+      refreshButton.addEventListener('click', function() {
+        // Atualizar status
+        document.getElementById('api-status').innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        document.getElementById('db-status').innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        document.getElementById('webhook-connection-status').innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        
+        // Chamar atualização de dados
+        App.loadDashboard();
+        
+        // Testar conexão com a API e atualizar status
+        fetch('/api/status')
+          .then(response => {
+            document.getElementById('api-status').innerHTML = 
+              '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Conectado</span>';
+            return response.json();
+          })
+          .then(data => {
+            // Atualizar status de DB
+            if (data && data.database && data.database.connected) {
+              document.getElementById('db-status').innerHTML = 
+                '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Conectado</span>';
+            } else {
+              document.getElementById('db-status').innerHTML = 
+                '<span class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>Desconectado</span>';
+            }
+          })
+          .catch(error => {
+            document.getElementById('api-status').innerHTML = 
+              '<span class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>Erro</span>';
+            console.error('Erro ao verificar status:', error);
+          });
+          
+        // Verificar status do webhook
+        fetch('/api/webhook/stats')
+          .then(response => response.json())
+          .then(data => {
+            if (data && data.success) {
+              document.getElementById('webhook-connection-status').innerHTML = 
+                '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Ativo</span>';
+            } else {
+              document.getElementById('webhook-connection-status').innerHTML = 
+                '<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Não configurado</span>';
+            }
+          })
+          .catch(() => {
+            document.getElementById('webhook-connection-status').innerHTML = 
+              '<span class="text-secondary"><i class="fas fa-question-circle me-1"></i>Desconhecido</span>';
+          });
+      });
+    }
+  });
+  
+  // Função para atualizar o painel com dados brutos
+  function updateDiagnosticPanel(data) {
+    const rawDataElement = document.getElementById('api-raw-data');
+    if (rawDataElement) {
+      try {
+        rawDataElement.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        rawDataElement.textContent = 'Erro ao exibir dados: ' + e.message;
+      }
+    }
+  }
+</script>

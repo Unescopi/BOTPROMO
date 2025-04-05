@@ -89,89 +89,81 @@ router.get('/webhook-info', (req, res) => {
   });
 });
 
-// Rota para estatísticas gerais
+// Rota de estatísticas
 router.get('/stats', async (req, res) => {
+  console.log('=== Processando requisição /stats ===');
+  console.log('Headers da requisição:', req.headers);
+  
   try {
-    console.log('=== Processando requisição /stats ===');
-    console.log('Headers da requisição:', JSON.stringify(req.headers));
+    // Verificar se estamos no modo DEBUG
+    if (process.env.DEBUG_MODE === 'true') {
+      console.log('MODO DEBUG: Retornando dados de exemplo');
+      const demoStats = require('../app').getDebugStats();
+      res.json({
+        success: true,
+        clients: 253,
+        messages: 1573,
+        promotions: 12,
+        deliveryRate: '95%',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
     
-    // Definir cabeçalhos para evitar cache e permitir CORS
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // Verificar estado da conexão com MongoDB
+    if (mongoose.connection.readyState !== 1) {
+      console.log('MongoDB não está conectado. Retornando dados de demonstração.');
+      res.json({
+        success: true,
+        clients: 0,
+        messages: 0,
+        promotions: 0,
+        deliveryRate: '0%',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
     
-    // Obtém estatísticas básicas do banco de dados
     console.log('Buscando contagem de clientes...');
-    const clients = await Client.countDocuments();
-    console.log(`Contagem de clientes: ${clients}`);
-    
-    // Contagem de mensagens da última semana
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const clientCount = await Client.countDocuments({ status: { $ne: 'deleted' } });
+    console.log('Contagem de clientes:', clientCount);
     
     console.log('Buscando contagem de mensagens...');
-    const messages = await Message.countDocuments({
-      timestamp: { $gte: oneWeekAgo }
-    });
-    console.log(`Contagem de mensagens: ${messages}`);
+    const messageCount = await Message.countDocuments();
+    console.log('Contagem de mensagens:', messageCount);
     
-    // Promoções ativas
     console.log('Buscando contagem de promoções...');
-    const promotions = await Promotion.countDocuments({
-      status: 'active'
-    });
-    console.log(`Contagem de promoções: ${promotions}`);
+    const promotionCount = await Promotion.countDocuments({ status: 'active' });
+    console.log('Contagem de promoções:', promotionCount);
     
-    // Cálculo da taxa de entrega
     console.log('Calculando taxa de entrega...');
-    const totalSentMessages = await Message.countDocuments({
-      direction: 'sent'
-    });
+    const deliveredCount = await Message.countDocuments({ status: 'delivered' });
+    const deliveryRate = messageCount > 0 ? Math.round((deliveredCount / messageCount) * 100) : 0;
+    console.log(`Taxa de entrega: ${deliveryRate}% (${deliveredCount}/${messageCount})`);
     
-    const deliveredMessages = await Message.countDocuments({
-      direction: 'sent',
-      status: { $in: ['delivered', 'read'] }
-    });
-    
-    // Calcula a taxa de entrega (ou define 0 se não houver mensagens)
-    const deliveryRateValue = totalSentMessages > 0 
-      ? Math.round((deliveredMessages / totalSentMessages) * 100) 
-      : 0;
-    
-    const deliveryRate = `${deliveryRateValue}%`;
-    console.log(`Taxa de entrega: ${deliveryRate} (${deliveredMessages}/${totalSentMessages})`);
-    
-    // Dados a serem retornados
     const statsData = {
       success: true,
-      clients,
-      messages,
-      promotions,
-      deliveryRate,
+      clients: clientCount,
+      messages: messageCount,
+      promotions: promotionCount,
+      deliveryRate: `${deliveryRate}%`,
       timestamp: new Date().toISOString()
     };
     
     console.log('Dados de estatísticas para resposta:', statsData);
     
-    // Retorna as estatísticas
-    res.status(200).json(statsData);
+    // Adicionar cabeçalhos para evitar cache
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    res.json(statsData);
     console.log('=== Requisição /stats concluída com sucesso ===');
-    
   } catch (error) {
-    console.error('=== ERRO ao obter estatísticas ===', error);
-    
-    // Logs detalhados do erro
-    console.error('Mensagem de erro:', error.message);
-    console.error('Stack de erro:', error.stack);
-    
-    // Retorna erro
+    console.error('=== ERRO na requisição /stats ===', error);
     res.status(500).json({
       success: false,
-      message: 'Erro ao obter estatísticas',
-      error: error.message
+      message: `Erro ao obter estatísticas: ${error.message}`
     });
   }
 });
