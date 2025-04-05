@@ -122,32 +122,77 @@ app.get('/pages/:page', (req, res) => {
 });
 
 // Conectar ao MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
+console.log('=== TENTANDO CONECTAR AO MONGODB ===');
+console.log(`URI do MongoDB: ${process.env.MONGODB_URI ? process.env.MONGODB_URI.replace(/mongodb:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@') : 'MONGODB_URI não definida'}`);
+
+const connectToMongoDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/cafeteria-promo-bot', {
+      serverSelectionTimeoutMS: 10000, // 10 segundos de timeout para seleção de servidor
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      retryWrites: true,
+      w: 'majority',
+      connectTimeoutMS: 30000, // 30 segundos de timeout para conexão
+      socketTimeoutMS: 30000, // 30 segundos de timeout para operações de socket
+    });
+    
     console.log('=== CONEXÃO COM MONGODB ===');
     console.log('Conectado ao MongoDB com sucesso!');
     console.log(`URI do MongoDB: ${process.env.MONGODB_URI.replace(/mongodb:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@')}`);
     
     // Verificar se podemos acessar as coleções
-    return Promise.all([
-      mongoose.connection.db.listCollections().toArray(),
-      mongoose.connection.db.collection('clients').countDocuments(),
-      mongoose.connection.db.collection('promotions').countDocuments(),
-      mongoose.connection.db.collection('messages').countDocuments()
-    ]);
-  })
-  .then(([collections, clientsCount, promotionsCount, messagesCount]) => {
+    const collections = await mongoose.connection.db.listCollections().toArray();
+    const clientsCount = await mongoose.connection.db.collection('clients').countDocuments().catch(e => 0);
+    const promotionsCount = await mongoose.connection.db.collection('promotions').countDocuments().catch(e => 0);
+    const messagesCount = await mongoose.connection.db.collection('messages').countDocuments().catch(e => 0);
+    
     console.log('=== COLEÇÕES NO MONGODB ===');
     console.log('Coleções disponíveis:', collections.map(c => c.name).join(', '));
     console.log('Contagem de documentos:');
     console.log(`- Clientes: ${clientsCount}`);
     console.log(`- Promoções: ${promotionsCount}`);
     console.log(`- Mensagens: ${messagesCount}`);
-  })
+    
+    return true;
+  } catch (err) {
+    console.error('=== ERRO NA CONEXÃO COM MONGODB PRINCIPAL ===');
+    console.error('Mensagem de erro:', err.message);
+    
+    // Tentar conexão alternativa se disponível
+    if (process.env.MONGODB_URI_ALT) {
+      console.log('=== TENTANDO CONEXÃO ALTERNATIVA COM MONGODB ===');
+      try {
+        await mongoose.connect(process.env.MONGODB_URI_ALT, {
+          serverSelectionTimeoutMS: 10000,
+          useNewUrlParser: true,
+          useUnifiedTopology: true,
+          retryWrites: true,
+          connectTimeoutMS: 30000,
+          socketTimeoutMS: 30000,
+        });
+        
+        console.log('=== CONEXÃO ALTERNATIVA COM MONGODB BEM-SUCEDIDA ===');
+        return true;
+      } catch (altErr) {
+        console.error('=== ERRO NA CONEXÃO ALTERNATIVA COM MONGODB ===');
+        console.error('Mensagem de erro:', altErr.message);
+        throw altErr;
+      }
+    } else {
+      throw err;
+    }
+  }
+};
+
+// Iniciar conexão ao MongoDB
+connectToMongoDB()
   .catch(err => {
-    console.error('=== ERRO NA CONEXÃO COM MONGODB ===');
+    console.error('=== ERRO FATAL NA CONEXÃO COM MONGODB ===');
     console.error('Mensagem de erro:', err.message);
     console.error('Stack trace:', err.stack);
+    console.error('Verifique se as credenciais do MongoDB estão corretas e se o serviço está acessível.');
+    console.error('Continuando com funcionalidade limitada (modo fallback).');
   });
 
 // Rotas da API

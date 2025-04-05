@@ -255,61 +255,62 @@ exports.changePassword = async (req, res) => {
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-
-    // Busca o usuário pelo email
+    
+    // Busca o usuário
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Não há usuário com esse email'
+        message: 'Usuário não encontrado'
       });
     }
-
-    // Gera token de redefinição de senha
-    const resetToken = user.getResetPasswordToken();
+    
+    // Gera token de reset
+    const resetToken = crypto.randomBytes(20).toString('hex');
+    
+    // Hash do token e configura data de expiração
+    user.resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+    
+    user.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 minutos
+    
     await user.save({ validateBeforeSave: false });
-
-    // Cria URL de redefinição
-    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
-
-    // Cria mensagem de email
-    const message = `
-      Você está recebendo este email porque solicitou a redefinição de senha.
-      Por favor, acesse o link abaixo para redefinir sua senha:
-      \n\n${resetUrl}\n\n
-      Este link expira em 10 minutos.
-      Se você não solicitou esta redefinição, por favor ignore este email.
-    `;
-
+    
+    // URL para reset de senha
+    const resetUrl = `${config.server.baseUrl}/reset-password/${resetToken}`;
+    
+    const message = `Você está recebendo este email porque solicitou a redefinição de senha. 
+    Por favor, clique no link a seguir para redefinir sua senha: ${resetUrl}`;
+    
     try {
-      // Envia email
       await sendEmail({
         email: user.email,
-        subject: 'Redefinição de Senha - Cafeteria Promo Bot',
+        subject: 'Redefinição de senha',
         message
       });
-
+      
       res.status(200).json({
         success: true,
-        message: 'Email de redefinição enviado'
+        message: 'Email enviado'
       });
     } catch (error) {
-      // Se falhar, limpa os campos de redefinição
       user.resetPasswordToken = undefined;
       user.resetPasswordExpire = undefined;
+      
       await user.save({ validateBeforeSave: false });
-
-      logger.error(`Erro ao enviar email: ${error.message}`);
+      
       return res.status(500).json({
         success: false,
-        message: 'Erro ao enviar email de redefinição'
+        message: 'Erro ao enviar email'
       });
     }
   } catch (error) {
-    logger.error(`Erro ao processar esqueci senha: ${error.message}`);
+    logger.error(`Erro ao solicitar reset de senha: ${error.message}`);
     res.status(500).json({
       success: false,
-      message: 'Erro ao processar solicitação'
+      message: 'Erro ao solicitar reset de senha'
     });
   }
 };
@@ -321,38 +322,34 @@ exports.forgotPassword = async (req, res) => {
  */
 exports.resetPassword = async (req, res) => {
   try {
-    // Criptografa o token da URL
+    // Hash do token
     const resetPasswordToken = crypto
       .createHash('sha256')
       .update(req.params.token)
       .digest('hex');
-
+    
     // Busca o usuário pelo token
     const user = await User.findOne({
       resetPasswordToken,
       resetPasswordExpire: { $gt: Date.now() }
     });
-
-    // Verifica se o token é válido
+    
     if (!user) {
       return res.status(400).json({
         success: false,
         message: 'Token inválido ou expirado'
       });
     }
-
+    
     // Define a nova senha
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
+    
     await user.save();
-
-    // Gera novo token JWT
-    const token = user.generateAuthToken();
-
+    
     res.status(200).json({
       success: true,
-      token,
       message: 'Senha redefinida com sucesso'
     });
   } catch (error) {
@@ -372,11 +369,11 @@ exports.resetPassword = async (req, res) => {
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select('-password');
-
+    
     res.status(200).json({
       success: true,
       count: users.length,
-      users
+      data: users
     });
   } catch (error) {
     logger.error(`Erro ao listar usuários: ${error.message}`);
@@ -388,34 +385,35 @@ exports.getAllUsers = async (req, res) => {
 };
 
 /**
- * @desc    Criar usuário (admin)
+ * @desc    Criar usuário (por admin)
  * @route   POST /api/auth/users
  * @access  Admin
  */
 exports.createUser = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
-
+    
     // Verifica se o usuário já existe
     const userExists = await User.findOne({ email });
+    
     if (userExists) {
       return res.status(400).json({
         success: false,
         message: 'Email já está em uso'
       });
     }
-
+    
     // Cria o usuário
     const user = await User.create({
       name,
       email,
       password,
-      role
+      role: role || 'viewer'
     });
-
+    
     res.status(201).json({
       success: true,
-      user: {
+      data: {
         id: user._id,
         name: user.name,
         email: user.email,
@@ -432,7 +430,7 @@ exports.createUser = async (req, res) => {
 };
 
 /**
- * @desc    Atualizar usuário (admin)
+ * @desc    Atualizar usuário (por admin)
  * @route   PUT /api/auth/users/:id
  * @access  Admin
  */
@@ -443,6 +441,7 @@ exports.updateUser = async (req, res) => {
     // Verifica se o email já está em uso
     if (email) {
       const existingUser = await User.findOne({ email });
+      
       if (existingUser && existingUser._id.toString() !== req.params.id) {
         return res.status(400).json({
           success: false,
@@ -450,24 +449,24 @@ exports.updateUser = async (req, res) => {
         });
       }
     }
-
+    
     // Atualiza o usuário
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { name, email, role, active },
       { new: true, runValidators: true }
     );
-
+    
     if (!updatedUser) {
       return res.status(404).json({
         success: false,
         message: 'Usuário não encontrado'
       });
     }
-
+    
     res.status(200).json({
       success: true,
-      user: updatedUser
+      data: updatedUser
     });
   } catch (error) {
     logger.error(`Erro ao atualizar usuário: ${error.message}`);
@@ -479,31 +478,31 @@ exports.updateUser = async (req, res) => {
 };
 
 /**
- * @desc    Excluir usuário (admin)
+ * @desc    Deletar usuário (por admin)
  * @route   DELETE /api/auth/users/:id
  * @access  Admin
  */
 exports.deleteUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-
+    
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'Usuário não encontrado'
       });
     }
-
-    // Não permite excluir a si mesmo
+    
+    // Não permitir a exclusão do próprio admin
     if (user._id.toString() === req.user.id) {
       return res.status(400).json({
         success: false,
         message: 'Você não pode excluir seu próprio usuário'
       });
     }
-
-    await user.remove();
-
+    
+    await User.findByIdAndDelete(req.params.id);
+    
     res.status(200).json({
       success: true,
       message: 'Usuário excluído com sucesso'
@@ -513,6 +512,61 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erro ao excluir usuário'
+    });
+  }
+};
+
+/**
+ * @desc    Logout do usuário
+ * @route   POST /api/auth/logout
+ * @access  Público
+ */
+exports.logout = async (req, res) => {
+  try {
+    // No JWT, o logout geralmente é tratado no cliente
+    // removendo o token do armazenamento local
+    res.status(200).json({
+      success: true,
+      message: 'Logout realizado com sucesso'
+    });
+  } catch (error) {
+    logger.error(`Erro ao fazer logout: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao fazer logout'
+    });
+  }
+};
+
+/**
+ * @desc    Atualizar token de acesso
+ * @route   POST /api/auth/refresh-token
+ * @access  Público
+ */
+exports.refreshToken = async (req, res) => {
+  try {
+    // Implementação básica, em produção deve-se usar refresh tokens
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token não fornecido'
+      });
+    }
+    
+    // Aqui você implementaria a lógica de refresh token
+    // Por simplicidade, retornamos uma resposta de sucesso
+    
+    res.status(200).json({
+      success: true,
+      message: 'Implementação de refresh token pendente'
+    });
+  } catch (error) {
+    logger.error(`Erro ao atualizar token: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao atualizar token'
     });
   }
 };

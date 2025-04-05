@@ -5,49 +5,39 @@ const express = require('express');
 const router = express.Router();
 const clientController = require('../controllers/clientController');
 const auth = require('../middleware/auth');
-const app = require('../app');
 
 // Log de debug para rastrear todas as chamadas à API de clientes
 router.use((req, res, next) => {
-  console.log(`=== ROTA CLIENTE ===> ${req.method} ${req.originalUrl} - IP: ${req.ip}`);
-  console.log('Headers:', req.headers);
+  console.log(`=== ROTA DE CLIENTES ACESSADA ===`);
+  console.log(`Método: ${req.method}, URL: ${req.originalUrl}`);
+  console.log(`Query params:`, req.query);
+  console.log(`Headers:`, req.headers);
   next();
 });
 
-// Rotas públicas para debug (temporárias)
-router.get('/test', (req, res) => {
-  res.json({ message: 'API de clientes está funcionando', timestamp: new Date().toISOString() });
-});
-
-// Rota de exemplo para depuração
+// Rota para obter dados de demonstração (não requer autenticação)
 router.get('/demo', (req, res) => {
-  console.log('=== REQUISIÇÃO GET /clients/demo ===');
-  // Verificar se o módulo app existe e tem o método getDebugClients
-  if (app && typeof app.getDebugClients === 'function') {
-    const demoData = app.getDebugClients();
-    console.log(`Retornando ${demoData.data.length} clientes de exemplo`);
-    return res.status(200).json(demoData);
-  } else {
-    console.log('Gerando dados manualmente');
-    // Dados de exemplo embutidos como fallback
-    const demoClients = [];
-    for (let i = 1; i <= 5; i++) {
-      demoClients.push({
-        _id: `demo-${i}`,
-        name: `Cliente Exemplo ${i}`,
-        phone: `55119999999${i}`,
-        email: `cliente${i}@exemplo.com`,
-        status: 'active',
-        tags: ['demo'],
-        lastVisit: new Date()
-      });
-    }
-    return res.status(200).json({
-      success: true, 
-      message: 'Dados de demonstração', 
-      data: demoClients
+  console.log('=== ROTA DE DEMONSTRAÇÃO ACESSADA ===');
+  
+  // Gerar 10 clientes de demonstração
+  const demoClients = [];
+  for (let i = 1; i <= 10; i++) {
+    demoClients.push({
+      _id: `demo-${i}`,
+      name: `Cliente Demonstração ${i}`,
+      phone: `5511999999${i.toString().padStart(2, '0')}`,
+      email: `cliente${i}@exemplo.com`,
+      status: i % 5 === 0 ? 'inactive' : 'active',
+      tags: ['demo', i % 2 === 0 ? 'vip' : 'regular'],
+      lastVisit: new Date(Date.now() - (i * 86400000)) // Dias decrescentes
     });
   }
+  
+  return res.status(200).json({
+    success: true,
+    message: "Dados de demonstração",
+    data: demoClients
+  });
 });
 
 // Todas as rotas a seguir usam autenticação, exceto em ambiente de desenvolvimento
@@ -65,16 +55,15 @@ router.get('/', authMiddleware, (req, res, next) => {
   console.log('=== REQUISIÇÃO GET /clients ===');
   console.log('Query params:', req.query);
   console.log('User ID:', req.user?.id);
-  console.log('Headers:', req.headers);
-  console.log('URL completa:', req.originalUrl);
   
-  // Adicionar cabeçalhos para evitar cache e permitir CORS
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // Verificar se a requisição tem header de accept e content-type válidos
+  console.log('Headers Accept:', req.headers.accept);
+  console.log('Headers Content-Type:', req.headers['content-type']);
+  
+  // Adicionar headers explícitos para CORS
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   next();
 }, clientController.getClients);
@@ -92,3 +81,4 @@ router.post('/tags/bulk', authMiddleware, clientController.addTagToMany);
 router.get('/stats', authMiddleware, clientController.getStats);
 
 module.exports = router;
+

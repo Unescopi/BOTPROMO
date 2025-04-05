@@ -1,5 +1,5 @@
 /**
- * Rotas de autenticação
+ * Rotas para autenticação
  */
 const express = require('express');
 const router = express.Router();
@@ -8,9 +8,9 @@ const auth = require('../middleware/auth');
 
 // Rotas públicas
 router.post('/register', authController.register);
-console.log('Rota de login registrada: POST /api/auth/login');
-console.log('Registrando rota de login: POST /login');
 router.post('/login', authController.login);
+router.post('/logout', authController.logout);
+router.post('/refresh-token', authController.refreshToken);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password/:token', authController.resetPassword);
 
@@ -45,3 +45,4 @@ router.delete('/users/:id',
 );
 
 module.exports = router;
+
