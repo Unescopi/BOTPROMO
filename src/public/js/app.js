@@ -323,173 +323,92 @@ const App = {
           el.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
         });
       
-      // Carregar estatísticas
+      // Carregar estatísticas diretamente do backend
       console.log('Carregando estatísticas...');
       
-      let stats;
+      // Buscar estatísticas com timeout para evitar espera infinita
+      const stats = await Promise.race([
+        API.get('/stats'),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout ao carregar estatísticas')), 10000)
+        )
+      ]);
       
-      try {
-        // Adicionar timeout para evitar espera infinita
-        const statsPromise = Promise.race([
-          this.fetchStats(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout ao carregar estatísticas')), 10000)
-          )
-        ]);
-        
-        stats = await statsPromise;
-        console.log('Estatísticas recebidas (formato original):', stats);
-      } catch (fetchError) {
-        console.error('Erro ao buscar estatísticas:', fetchError);
-        
-        // SOLUÇÃO ALTERNATIVA: Se falhar, usar dados de exemplo
-        console.log('Usando dados de exemplo devido a erro na API');
-        stats = {
-          success: true,
-          clients: 253,
-          messages: 1573, 
-          promotions: 12,
-          deliveryRate: '95%'
-        };
+      console.log('Estatísticas recebidas:', stats);
+      
+      // Verificar se temos dados válidos
+      if (!stats) {
+        throw new Error('Não foi possível obter dados do servidor');
       }
       
-      console.log('Tipo de dados recebidos:', typeof stats);
-      
-      // Se não recebemos dados ou há erro na estrutura, forçar dados de exemplo
-      if (!stats || typeof stats !== 'object' || (stats.success === false)) {
-        console.log('Dados ausentes ou inválidos. Usando dados de exemplo.');
-        stats = {
-          success: true,
-          clients: 253,
-          messages: 1573,
-          promotions: 12,
-          deliveryRate: '95%'
-        };
-      }
-      
-      // Atualizar painel de diagnóstico se a função existir globalmente
-      if (typeof updateDiagnosticPanel === 'function') {
-        console.log('Atualizando painel de diagnóstico...');
-        updateDiagnosticPanel(stats);
-      } else {
-        console.log('Função updateDiagnosticPanel não encontrada');
-      }
-      
-      // Atualizar o elemento api-raw-data diretamente se existir
+      // Exibir dados brutos no elemento debug se existir
       const rawDataElement = document.getElementById('api-raw-data');
       if (rawDataElement) {
-        try {
-          rawDataElement.textContent = JSON.stringify(stats, null, 2);
-        } catch (e) {
-          rawDataElement.textContent = 'Erro ao exibir dados: ' + e.message;
-        }
+        rawDataElement.textContent = JSON.stringify(stats, null, 2);
       }
       
-      // Tentar extrair os dados se estiverem em um formato aninhado
-      if (stats && stats.data) {
-        console.log('Dados encontrados em stats.data, extraindo...');
-        stats = stats.data;
-      }
-
-      // Tentar extrair os dados se estiverem em um formato diferente
-      if (stats && stats.success && !stats.clients && !stats.messages) {
-        // Procurar por propriedades relevantes em diferentes locais
-        console.log('Buscando dados em diferentes propriedades do objeto stats...');
-        const extractedStats = {};
-        
-        // Buscar em diferentes locais possíveis
-        if (stats.clients) extractedStats.clients = stats.clients;
-        else if (stats.data && stats.data.clients) extractedStats.clients = stats.data.clients;
-        else if (stats.total && stats.total.clients) extractedStats.clients = stats.total.clients;
-        
-        if (stats.promotions) extractedStats.promotions = stats.promotions;
-        else if (stats.data && stats.data.promotions) extractedStats.promotions = stats.data.promotions;
-        else if (stats.total && stats.total.promotions) extractedStats.promotions = stats.total.promotions;
-        
-        if (stats.messages) extractedStats.messages = stats.messages;
-        else if (stats.data && stats.data.messages) extractedStats.messages = stats.data.messages;
-        else if (stats.total && stats.total.messages) extractedStats.messages = stats.data.messages;
-        
-        if (stats.deliveryRate) extractedStats.deliveryRate = stats.deliveryRate;
-        else if (stats.data && stats.data.deliveryRate) extractedStats.deliveryRate = stats.data.deliveryRate;
-        
-        console.log('Dados extraídos de diferentes propriedades:', extractedStats);
-        
-        // Se encontramos algum dado, use-o
-        if (Object.keys(extractedStats).length > 0) {
-          stats = extractedStats;
-        }
+      // Atualizar painel diagnóstico se existir
+      if (typeof updateDiagnosticPanel === 'function') {
+        updateDiagnosticPanel(stats);
       }
       
-      // Adicionar painel de depuração ao dashboard se não existir
-      this.addDebugPanel(stats);
+      // Extrair dados das estatísticas - adaptado para diferentes formatos possíveis
+      const clientCount = stats.clients || stats.totalClients || (stats.total ? stats.total.clients : 0) || 0;
+      const promotionsCount = stats.promotions || stats.activePromotions || (stats.total ? stats.total.promotions : 0) || 0;
+      const messagesCount = stats.messages || stats.totalMessages || (stats.total ? stats.total.messages : 0) || 0;
+      const deliveryRateValue = stats.deliveryRate || stats.messageStats?.deliveryRate || '0%';
       
-      // ATUALIZAÇÃO FORÇADA: Garantir que temos valores numéricos para todos os campos
-      stats.clients = stats.clients || 0;
-      stats.messages = stats.messages || 0;
-      stats.promotions = stats.promotions || 0;
-      stats.deliveryRate = stats.deliveryRate || '0%';
+      console.log('Dados extraídos:', {
+        clients: clientCount,
+        promotions: promotionsCount,
+        messages: messagesCount,
+        deliveryRate: deliveryRateValue
+      });
       
-      // Atualizar contadores
-      if (stats) {
-        // Clientes
-        const clientCount = document.querySelector('.client-count');
-        if (clientCount) {
-          clientCount.textContent = stats.clients;
-          console.log('Contador de clientes atualizado:', stats.clients);
-        }
-        
-        // Promoções ativas
-        const activePromos = document.querySelector('.active-promos');
-        if (activePromos) {
-          activePromos.textContent = stats.promotions;
-          console.log('Contador de promoções ativas atualizado:', stats.promotions);
-        }
-        
-        // Mensagens enviadas
-        const messagesSent = document.querySelector('.messages-sent');
-        if (messagesSent) {
-          messagesSent.textContent = stats.messages;
-          console.log('Contador de mensagens enviadas atualizado:', stats.messages);
-        }
-        
-        // Taxa de entrega
-        const deliveryRate = document.querySelector('.delivery-rate');
-        if (deliveryRate) {
-          // Remover o símbolo % se estiver presente
-          const rateValue = typeof stats.deliveryRate === 'string' ? 
-            stats.deliveryRate.replace('%', '') : 
-            stats.deliveryRate;
-          
-          deliveryRate.textContent = rateValue;
-          console.log('Taxa de entrega atualizada:', rateValue);
-        }
-        
-        // Atualizar também outros campos relacionados se existirem
-        document.querySelector('.new-clients')?.textContent = stats.newClients || 15;
-        document.querySelector('.scheduled-promos')?.textContent = stats.scheduledPromotions || 5;
-        document.querySelector('.read-rate')?.textContent = stats.readRate || '75%';
-        document.querySelector('.response-count')?.textContent = stats.responses || 215;
-      } else {
-        console.warn('Nenhum dado de estatística recebido');
-        document.querySelectorAll('.client-count, .active-promos, .messages-sent')
-          .forEach(el => {
-            el.textContent = '0';
-          });
-        document.querySelector('.delivery-rate')?.textContent = '0';
+      // Atualizar elementos na interface
+      const clientCountEl = document.querySelector('.client-count');
+      if (clientCountEl) {
+        clientCountEl.textContent = clientCount;
       }
       
-      console.log('=== FIM: loadDashboard ===');
+      const activePromosEl = document.querySelector('.active-promos');
+      if (activePromosEl) {
+        activePromosEl.textContent = promotionsCount;
+      }
+      
+      const messagesSentEl = document.querySelector('.messages-sent');
+      if (messagesSentEl) {
+        messagesSentEl.textContent = messagesCount;
+      }
+      
+      const deliveryRateEl = document.querySelector('.delivery-rate');
+      if (deliveryRateEl) {
+        // Remover símbolo % se existir
+        const rateValue = typeof deliveryRateValue === 'string' ? 
+          deliveryRateValue.replace('%', '') : deliveryRateValue;
+        
+        deliveryRateEl.textContent = rateValue;
+      }
+      
+      console.log('=== FIM: loadDashboard - Sucesso ===');
     } catch (error) {
       console.error('=== ERRO: loadDashboard ===', error);
-      document.querySelectorAll('.client-count, .active-promos, .messages-sent')
+      
+      // Mostrar erro na interface
+      document.querySelectorAll('.client-count, .active-promos, .messages-sent, .delivery-rate')
         .forEach(el => {
-          el.textContent = '0';
+          el.innerHTML = '<span class="text-danger">Erro</span>';
         });
-      document.querySelector('.delivery-rate')?.textContent = '0';
       
       // Mostrar mensagem de erro
-      this.showToast('Erro ao carregar dados do dashboard. Tente novamente.', 'danger');
+      this.showToast(`Erro ao carregar dados: ${error.message}`, 'danger');
+      
+      // Mostrar erro no painel diagnóstico se existir
+      const rawDataElement = document.getElementById('api-raw-data');
+      if (rawDataElement) {
+        rawDataElement.textContent = `ERRO: ${error.message}`;
+        rawDataElement.classList.add('text-danger');
+      }
     }
   },
 

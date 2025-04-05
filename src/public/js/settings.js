@@ -12,6 +12,7 @@ const SettingsManager = {
     this.initWebhookTab();
     this.initDiagnosticsTab();
     this.initExportTab();
+    this.setupOfflineMode();
     
     // Verificar se há uma aba específica para abrir (via URL hash)
     const hash = window.location.hash;
@@ -1284,7 +1285,665 @@ const SettingsManager = {
     document.getElementById('create-backup-btn')?.addEventListener('click', () => {
       this.createBackup();
     });
-  }
+  },
+
+  // Configurar suporte a modo offline
+  setupOfflineMode() {
+    // Verificar status de conectividade
+    this.checkConnectivity();
+    
+    // Adicionar listener para eventos de conectividade
+    window.addEventListener('online', () => {
+      console.log('Conexão com a internet restaurada!');
+      this.checkConnectivity();
+    });
+    
+    window.addEventListener('offline', () => {
+      console.log('Conexão com a internet perdida!');
+      this.showOfflineNotification(true);
+    });
+  },
+  
+  // Verificar conectividade com o servidor
+  async checkConnectivity() {
+    try {
+      const statusContainer = document.getElementById('server-status');
+      if (statusContainer) {
+        statusContainer.innerHTML = `
+          <div class="d-flex align-items-center text-warning">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+              <span class="visually-hidden">Verificando...</span>
+            </div>
+            <span>Verificando conexão com o servidor...</span>
+          </div>
+        `;
+      }
+      
+      // Verificar conexão com o servidor
+      const response = await fetch('/api/status', {
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' },
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Status do servidor:', data);
+      
+      // Atualizar indicador de status
+      if (statusContainer) {
+        if (data.online) {
+          statusContainer.innerHTML = `
+            <div class="d-flex align-items-center text-success">
+              <i class="fas fa-check-circle me-2"></i>
+              <span>Servidor online</span>
+            </div>
+          `;
+          
+          // Verificar status do banco de dados
+          const dbStatusContainer = document.getElementById('db-status');
+          if (dbStatusContainer && data.database) {
+            if (data.database.connected) {
+              dbStatusContainer.innerHTML = `
+                <div class="d-flex align-items-center text-success">
+                  <i class="fas fa-check-circle me-2"></i>
+                  <span>Banco de dados conectado</span>
+                </div>
+              `;
+            } else {
+              dbStatusContainer.innerHTML = `
+                <div class="d-flex align-items-center text-danger">
+                  <i class="fas fa-times-circle me-2"></i>
+                  <span>Banco de dados desconectado</span>
+                </div>
+              `;
+            }
+          }
+          
+          // Se estamos online, remover notificação offline
+          this.showOfflineNotification(false);
+        } else {
+          statusContainer.innerHTML = `
+            <div class="d-flex align-items-center text-danger">
+              <i class="fas fa-times-circle me-2"></i>
+              <span>Servidor offline</span>
+            </div>
+          `;
+          this.showOfflineNotification(true);
+        }
+      }
+      
+      // Atualizar outras informações do sistema se disponíveis
+      if (data.version) {
+        const versionElement = document.getElementById('api-version');
+        if (versionElement) {
+          versionElement.textContent = data.version;
+        }
+      }
+      
+      if (data.uptime) {
+        const uptimeElement = document.getElementById('server-uptime');
+        if (uptimeElement) {
+          const uptime = this.formatUptime(data.uptime);
+          uptimeElement.textContent = uptime;
+        }
+      }
+      
+      if (data.memory) {
+        const memoryElement = document.getElementById('memory-usage');
+        if (memoryElement) {
+          const memoryUsed = Math.round(data.memory.used / 1024 / 1024);
+          const memoryTotal = Math.round(data.memory.total / 1024 / 1024);
+          const memoryPercent = Math.round((data.memory.used / data.memory.total) * 100);
+          
+          memoryElement.innerHTML = `
+            ${memoryUsed} MB / ${memoryTotal} MB (${memoryPercent}%)
+            <div class="progress mt-1" style="height: 6px;">
+              <div class="progress-bar ${memoryPercent > 80 ? 'bg-danger' : memoryPercent > 60 ? 'bg-warning' : 'bg-success'}" 
+                   role="progressbar" 
+                   style="width: ${memoryPercent}%" 
+                   aria-valuenow="${memoryPercent}" 
+                   aria-valuemin="0" 
+                   aria-valuemax="100"></div>
+            </div>
+          `;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Erro ao verificar conectividade:', error);
+      
+      // Atualizar indicador de status
+      const statusContainer = document.getElementById('server-status');
+      if (statusContainer) {
+        statusContainer.innerHTML = `
+          <div class="d-flex align-items-center text-danger">
+            <i class="fas fa-times-circle me-2"></i>
+            <span>Servidor inacessível</span>
+          </div>
+        `;
+      }
+      
+      // Mostrar notificação de modo offline
+      this.showOfflineNotification(true);
+      
+      return false;
+    }
+  },
+  
+  // Formatar tempo de atividade do servidor
+  formatUptime(seconds) {
+    if (!seconds || isNaN(seconds)) return 'N/D';
+    
+    const days = Math.floor(seconds / (3600 * 24));
+    const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    const parts = [];
+    if (days > 0) parts.push(`${days} dia${days > 1 ? 's' : ''}`);
+    if (hours > 0) parts.push(`${hours} hora${hours > 1 ? 's' : ''}`);
+    if (minutes > 0) parts.push(`${minutes} minuto${minutes > 1 ? 's' : ''}`);
+    
+    return parts.join(', ') || '< 1 minuto';
+  },
+  
+  // Mostrar notificação de modo offline
+  showOfflineNotification(show) {
+    const offlineBanner = document.getElementById('offline-banner');
+    
+    if (show) {
+      if (!offlineBanner) {
+        // Criar banner de modo offline
+        const banner = document.createElement('div');
+        banner.id = 'offline-banner';
+        banner.className = 'alert alert-warning alert-dismissible fade show mb-4';
+        banner.innerHTML = `
+          <div class="d-flex align-items-center">
+            <i class="fas fa-wifi-slash me-3"></i>
+            <div>
+              <h5 class="alert-heading">Modo Offline</h5>
+              <p class="mb-0">Não foi possível conectar ao servidor. Algumas funcionalidades estarão limitadas.</p>
+            </div>
+          </div>
+          <hr>
+          <p class="mb-0">
+            <strong>O que você pode fazer:</strong>
+          </p>
+          <ul>
+            <li>Verificar a conexão com a internet</li>
+            <li>Confirmar se o servidor está em execução</li>
+            <li>Verificar as configurações no arquivo .env</li>
+          </ul>
+          <button id="retry-connection-btn" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-sync me-1"></i>Tentar reconectar
+          </button>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+        `;
+        
+        // Adicionar banner no topo do container principal
+        const mainContainer = document.querySelector('.container') || document.body;
+        if (mainContainer.firstChild) {
+          mainContainer.insertBefore(banner, mainContainer.firstChild);
+        } else {
+          mainContainer.appendChild(banner);
+        }
+        
+        // Adicionar evento ao botão de reconexão
+        document.getElementById('retry-connection-btn')?.addEventListener('click', () => {
+          this.checkConnectivity();
+        });
+      }
+    } else {
+      // Remover banner se existir
+      if (offlineBanner) {
+        offlineBanner.remove();
+      }
+    }
+  },
+  
+  // Executar diagnóstico detalhado do sistema
+  async runDetailedDiagnostic() {
+    const resultsContainer = document.getElementById('diagnostic-results');
+    if (!resultsContainer) return;
+    
+    try {
+      resultsContainer.innerHTML = `
+        <div class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Verificando...</span>
+          </div>
+          <p class="mt-2">Executando diagnóstico completo do sistema...</p>
+        </div>
+      `;
+      
+      // Executar diagnóstico
+      const response = await fetch('/api/diagnostic/system', {
+        method: 'GET',
+        headers: { 'Cache-Control': 'no-cache' },
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`);
+      }
+      
+      const diagnostic = await response.json();
+      console.log('Diagnóstico do sistema:', diagnostic);
+      
+      // Formatar e exibir resultados
+      let html = `
+        <div class="card mb-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0">Resultado do Diagnóstico</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6>Status do Sistema</h6>
+                <ul class="list-group mb-3">
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Servidor
+                    ${this.getStatusBadgeHtml(diagnostic.server ? 'success' : 'danger')}
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Banco de Dados
+                    ${this.getStatusBadgeHtml(diagnostic.database ? 'success' : 'danger')}
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    API WhatsApp
+                    ${this.getStatusBadgeHtml(diagnostic.whatsapp ? 'success' : 'danger')}
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Sistema de Arquivos
+                    ${this.getStatusBadgeHtml(diagnostic.filesystem ? 'success' : 'warning')}
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Agendador
+                    ${this.getStatusBadgeHtml(diagnostic.scheduler ? 'success' : 'warning')}
+                  </li>
+                </ul>
+              </div>
+              
+              <div class="col-md-6">
+                <h6>Detalhes da Configuração</h6>
+                <ul class="list-group mb-3">
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Modo Debug
+                    <span class="badge ${diagnostic.debug ? 'bg-warning text-dark' : 'bg-success'}">${diagnostic.debug ? 'Ativado' : 'Desativado'}</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Versão da API
+                    <span>${diagnostic.version || 'N/D'}</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Ambiente
+                    <span class="badge ${diagnostic.environment === 'production' ? 'bg-success' : 'bg-info'}">${diagnostic.environment || 'development'}</span>
+                  </li>
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Porta
+                    <span>${diagnostic.port || 'N/D'}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            
+            <div class="row mt-3">
+              <div class="col-12">
+                <h6>Estatísticas do Sistema</h6>
+                <table class="table table-bordered table-sm">
+                  <tbody>
+                    <tr>
+                      <th>CPU</th>
+                      <td>${diagnostic.stats?.cpu ? diagnostic.stats.cpu + '%' : 'N/D'}</td>
+                      <th>Memória</th>
+                      <td>${diagnostic.stats?.memory ? diagnostic.stats.memory + ' MB' : 'N/D'}</td>
+                    </tr>
+                    <tr>
+                      <th>Tempo de Atividade</th>
+                      <td>${this.formatUptime(diagnostic.stats?.uptime)}</td>
+                      <th>Disco</th>
+                      <td>${diagnostic.stats?.disk ? diagnostic.stats.disk + '% utilizado' : 'N/D'}</td>
+                    </tr>
+                    <tr>
+                      <th>Conexões Ativas</th>
+                      <td>${diagnostic.stats?.connections || 'N/D'}</td>
+                      <th>Tarefas Pendentes</th>
+                      <td>${diagnostic.stats?.pendingTasks || 'N/D'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            ${diagnostic.errors && diagnostic.errors.length > 0 ? `
+            <div class="alert alert-danger mt-3">
+              <h6 class="alert-heading">Erros Encontrados</h6>
+              <ul class="mb-0">
+                ${diagnostic.errors.map(error => `<li>${error}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            
+            ${diagnostic.warnings && diagnostic.warnings.length > 0 ? `
+            <div class="alert alert-warning mt-3">
+              <h6 class="alert-heading">Avisos</h6>
+              <ul class="mb-0">
+                ${diagnostic.warnings.map(warning => `<li>${warning}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            
+            <div class="mt-3">
+              <button id="retry-diagnostic-btn" class="btn btn-primary">
+                <i class="fas fa-sync me-1"></i>Executar Novamente
+              </button>
+              <button id="export-diagnostic-btn" class="btn btn-outline-secondary ms-2">
+                <i class="fas fa-file-export me-1"></i>Exportar Diagnóstico
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      resultsContainer.innerHTML = html;
+      
+      // Adicionar eventos aos botões
+      document.getElementById('retry-diagnostic-btn')?.addEventListener('click', () => this.runDetailedDiagnostic());
+      document.getElementById('export-diagnostic-btn')?.addEventListener('click', () => this.exportDiagnostic(diagnostic));
+      
+    } catch (error) {
+      console.error('Erro ao executar diagnóstico:', error);
+      
+      // Mostrar mensagem de erro
+      resultsContainer.innerHTML = `
+        <div class="alert alert-danger">
+          <h5 class="alert-heading">Erro ao executar diagnóstico</h5>
+          <p>${error.message || 'Não foi possível conectar ao servidor'}</p>
+          <hr>
+          <p class="mb-0">Tentar diagnóstico offline:</p>
+          <div class="mt-2">
+            <button id="offline-diagnostic-btn" class="btn btn-warning">
+              <i class="fas fa-tools me-1"></i>Diagnóstico Offline
+            </button>
+          </div>
+        </div>
+      `;
+      
+      // Adicionar evento ao botão de diagnóstico offline
+      document.getElementById('offline-diagnostic-btn')?.addEventListener('click', () => this.runOfflineDiagnostic());
+    }
+  },
+  
+  // Executar diagnóstico offline (baseado em informações locais)
+  runOfflineDiagnostic() {
+    const resultsContainer = document.getElementById('diagnostic-results');
+    if (!resultsContainer) return;
+    
+    // Criar diagnóstico baseado em informações disponíveis no navegador
+    const diagnostic = {
+      timestamp: new Date().toISOString(),
+      browser: {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        online: navigator.onLine,
+        cookiesEnabled: navigator.cookieEnabled,
+        localStorage: typeof localStorage !== 'undefined',
+        sessionStorage: typeof sessionStorage !== 'undefined'
+      },
+      localStorage: {
+        availableItems: Object.keys(localStorage).length,
+        approximateSize: this.calculateLocalStorageSize()
+      },
+      connection: {
+        type: navigator.connection ? navigator.connection.effectiveType : 'unknown',
+        downlink: navigator.connection ? navigator.connection.downlink : 'unknown',
+        rtt: navigator.connection ? navigator.connection.rtt : 'unknown'
+      }
+    };
+    
+    // Verificar objetos de API no armazenamento local
+    const cachedData = {
+      userProfile: localStorage.getItem('userProfile') ? true : false,
+      dashboardStats: localStorage.getItem('dashboardStats') ? true : false,
+      clientsData: localStorage.getItem('clientsData') ? true : false,
+      promotionsData: localStorage.getItem('promotionsData') ? true : false,
+      messagesData: localStorage.getItem('messagesData') ? true : false
+    };
+    
+    // Tentar extrair versão do cache
+    let cachedVersion = 'N/D';
+    try {
+      const dashboardStats = JSON.parse(localStorage.getItem('dashboardStats') || '{}');
+      if (dashboardStats.version) {
+        cachedVersion = dashboardStats.version;
+      }
+    } catch (e) {
+      console.error('Erro ao extrair versão do cache:', e);
+    }
+    
+    // Criar relatório HTML
+    const html = `
+      <div class="card mb-4">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">Diagnóstico Offline</h5>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            Este diagnóstico é baseado apenas em informações disponíveis no navegador, já que não foi possível conectar ao servidor.
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <h6>Informações do Navegador</h6>
+              <ul class="list-group mb-3">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Status da Conexão
+                  ${this.getStatusBadgeHtml(diagnostic.browser.online ? 'success' : 'danger')}
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Cookies Habilitados
+                  ${this.getStatusBadgeHtml(diagnostic.browser.cookiesEnabled ? 'success' : 'warning')}
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  LocalStorage Disponível
+                  ${this.getStatusBadgeHtml(diagnostic.browser.localStorage ? 'success' : 'danger')}
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Dados em Cache
+                  ${Object.values(cachedData).some(v => v) ? 
+                    `<span class="badge bg-success">Disponíveis</span>` : 
+                    `<span class="badge bg-danger">Nenhum</span>`}
+                </li>
+              </ul>
+            </div>
+            
+            <div class="col-md-6">
+              <h6>Dados em Cache</h6>
+              <ul class="list-group mb-3">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Perfil de Usuário
+                  ${this.getStatusBadgeHtml(cachedData.userProfile ? 'success' : 'danger')}
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Estatísticas do Dashboard
+                  ${this.getStatusBadgeHtml(cachedData.dashboardStats ? 'success' : 'danger')}
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Dados de Clientes
+                  ${this.getStatusBadgeHtml(cachedData.clientsData ? 'success' : 'danger')}
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Dados de Promoções
+                  ${this.getStatusBadgeHtml(cachedData.promotionsData ? 'success' : 'danger')}
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                  Dados de Mensagens
+                  ${this.getStatusBadgeHtml(cachedData.messagesData ? 'success' : 'danger')}
+                </li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="row mt-3">
+            <div class="col-12">
+              <h6>Detalhes da Conexão</h6>
+              <table class="table table-bordered table-sm">
+                <tbody>
+                  <tr>
+                    <th>Tipo de Conexão</th>
+                    <td>${diagnostic.connection.type}</td>
+                    <th>Downlink</th>
+                    <td>${diagnostic.connection.downlink} Mbps</td>
+                  </tr>
+                  <tr>
+                    <th>Round Trip Time</th>
+                    <td>${diagnostic.connection.rtt} ms</td>
+                    <th>Versão em Cache</th>
+                    <td>${cachedVersion}</td>
+                  </tr>
+                  <tr>
+                    <th>Uso do LocalStorage</th>
+                    <td>${diagnostic.localStorage.approximateSize} KB</td>
+                    <th>Itens no LocalStorage</th>
+                    <td>${diagnostic.localStorage.availableItems}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <div class="alert alert-warning mt-3">
+            <h6 class="alert-heading">Recomendações</h6>
+            <ol class="mb-0">
+              <li>Verifique sua conexão com a internet</li>
+              <li>Confirme se o servidor está em execução</li>
+              <li>Tente limpar o cache do navegador e recarregar a página</li>
+              <li>Se necessário, exporte os dados em cache antes de limpar o navegador</li>
+            </ol>
+          </div>
+          
+          <div class="mt-3">
+            <button id="retry-connection-btn" class="btn btn-primary">
+              <i class="fas fa-sync me-1"></i>Tentar Reconectar
+            </button>
+            <button id="export-cache-btn" class="btn btn-outline-secondary ms-2">
+              <i class="fas fa-file-export me-1"></i>Exportar Dados em Cache
+            </button>
+            <button id="clear-cache-btn" class="btn btn-outline-danger ms-2">
+              <i class="fas fa-trash me-1"></i>Limpar Cache
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    resultsContainer.innerHTML = html;
+    
+    // Adicionar eventos aos botões
+    document.getElementById('retry-connection-btn')?.addEventListener('click', () => this.runDetailedDiagnostic());
+    document.getElementById('export-cache-btn')?.addEventListener('click', () => this.exportCachedData());
+    document.getElementById('clear-cache-btn')?.addEventListener('click', () => this.clearBrowserCache());
+  },
+  
+  // Calcular tamanho aproximado do localStorage
+  calculateLocalStorageSize() {
+    let totalSize = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      const value = localStorage.getItem(key);
+      totalSize += (key.length + value.length) * 2; // Aproximação para UTF-16
+    }
+    return Math.round(totalSize / 1024); // Converter para KB
+  },
+  
+  // Exportar dados em cache
+  exportCachedData() {
+    try {
+      const cachedData = {
+        userProfile: JSON.parse(localStorage.getItem('userProfile') || '{}'),
+        dashboardStats: JSON.parse(localStorage.getItem('dashboardStats') || '{}'),
+        clientsData: JSON.parse(localStorage.getItem('clientsData') || '[]'),
+        promotionsData: JSON.parse(localStorage.getItem('promotionsData') || '[]'),
+        messagesData: JSON.parse(localStorage.getItem('messagesData') || '[]'),
+        exportDate: new Date().toISOString(),
+        systemInfo: {
+          browser: navigator.userAgent,
+          language: navigator.language,
+          platform: navigator.platform
+        }
+      };
+      
+      const jsonString = JSON.stringify(cachedData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `botpromo-cache-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      
+      URL.revokeObjectURL(url);
+      
+      this.showToast('Dados em cache exportados com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao exportar dados em cache:', error);
+      this.showToast('Erro ao exportar dados em cache: ' + (error.message || 'Erro desconhecido'), 'danger');
+    }
+  },
+  
+  // Limpar cache do navegador
+  clearBrowserCache() {
+    if (confirm('Tem certeza que deseja limpar todos os dados em cache? Esta ação não pode ser desfeita.')) {
+      try {
+        // Limpar localStorage
+        localStorage.clear();
+        
+        this.showToast('Cache limpo com sucesso! A página será recarregada.', 'success');
+        
+        // Recarregar a página após um breve delay
+        setTimeout(() => {
+          window.location.reload(true);
+        }, 1500);
+      } catch (error) {
+        console.error('Erro ao limpar cache:', error);
+        this.showToast('Erro ao limpar cache: ' + (error.message || 'Erro desconhecido'), 'danger');
+      }
+    }
+  },
+  
+  // Exportar diagnóstico
+  exportDiagnostic(diagnostic) {
+    try {
+      // Adicionar informações extras
+      diagnostic.exportTimestamp = new Date().toISOString();
+      diagnostic.browser = {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        platform: navigator.platform
+      };
+      
+      const jsonString = JSON.stringify(diagnostic, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `botpromo-diagnostic-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      
+      URL.revokeObjectURL(url);
+      
+      this.showToast('Diagnóstico exportado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao exportar diagnóstico:', error);
+      this.showToast('Erro ao exportar diagnóstico: ' + (error.message || 'Erro desconhecido'), 'danger');
+    }
+  },
 };
 
 // Quando a página de configurações for carregada, inicializar o gerenciador

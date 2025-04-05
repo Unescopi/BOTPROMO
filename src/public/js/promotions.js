@@ -76,47 +76,275 @@ const PromotionsManager = {
   },
   
   async loadPromotions() {
+    const promotionsContainer = document.getElementById('promotions-list');
+    if (!promotionsContainer) return;
+    
     try {
-      console.log('=== INÍCIO: loadPromotions ===');
+      // Mostrar o indicador de carregamento
+      promotionsContainer.innerHTML = `
+        <div class="text-center py-4">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregando...</span>
+          </div>
+        </div>
+      `;
       
-      // Mostrar indicador de carregamento
-      const tableBody = document.querySelector('.promotions-table tbody');
-      if (tableBody) {
-        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Carregando promoções...</td></tr>';
+      // Obter filtros
+      const searchTerm = document.getElementById('promotion-search')?.value || '';
+      const startDate = document.getElementById('start-date')?.value || '';
+      const endDate = document.getElementById('end-date')?.value || '';
+      const statusFilter = document.getElementById('status-filter')?.value || '';
+      
+      // Construir URL com parâmetros de filtro
+      let endpoint = '/promotions';
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (startDate) params.append('start', startDate);
+      if (endDate) params.append('end', endDate);
+      if (statusFilter) params.append('status', statusFilter);
+      
+      if (params.toString()) {
+        endpoint += `?${params.toString()}`;
       }
       
-      // Verificar se o usuário está autenticado
-      if (!Auth.isAuthenticated()) {
-        console.log('Usuário não autenticado, redirecionando para login');
-        Auth.logout();
+      let promotions = [];
+      let fetchSuccess = false;
+      
+      try {
+        console.log('Buscando promoções da API:', endpoint);
+        promotions = await API.get(endpoint);
+        console.log('Promoções recebidas:', promotions);
+        fetchSuccess = true;
+      } catch (apiError) {
+        console.error('Erro ao buscar promoções:', apiError);
+        
+        // Verificar se é um erro de autenticação
+        if (apiError?.message?.includes('Sessão expirada')) {
+          Auth.logout();
+          return;
+        }
+        
+        // Mostrar toast de erro, mas continuar com dados de exemplo
+        this.showToast(`Erro ao carregar promoções: ${apiError.message || 'Falha na comunicação com o servidor'}`, 'warning');
+      }
+      
+      // Verificar se temos dados para mostrar
+      if (!promotions || !Array.isArray(promotions) || promotions.length === 0) {
+        console.warn('Nenhuma promoção retornada da API ou erro na solicitação. Usando dados de exemplo.');
+        
+        // Criar promoções de exemplo para demonstração
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const nextWeek = new Date(now);
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        promotions = [
+          {
+            _id: 'promo-demo-1',
+            title: 'Happy Hour - Café com Desconto',
+            description: 'De segunda a sexta, das 16h às 18h, todos os cafés com 15% de desconto!',
+            schedule: {
+              startDate: tomorrow.toISOString(),
+              sendTime: '16:00'
+            },
+            status: 'scheduled',
+            message: {
+              text: 'Aproveite nosso Happy Hour de hoje! 15% de desconto em todos os cafés das 16h às 18h. Esperamos você!',
+              media: null
+            },
+            createdAt: now.toISOString(),
+            targetAudience: {
+              filters: { tags: ['cliente-vip'] },
+              count: 25
+            }
+          },
+          {
+            _id: 'promo-demo-2',
+            title: 'Feriado Especial',
+            description: 'Promoção especial para o feriado, com descontos em toda a loja',
+            schedule: {
+              startDate: nextWeek.toISOString(),
+              sendTime: '09:00'
+            },
+            status: 'scheduled',
+            message: {
+              text: 'Promoção especial de feriado! Venha aproveitar descontos de até 30% em toda a loja. Válido apenas hoje!',
+              media: 'https://exemplo.com/imagens/promo-feriado.jpg'
+            },
+            createdAt: now.toISOString(),
+            targetAudience: {
+              filters: { tags: [] },
+              count: 150
+            }
+          },
+          {
+            _id: 'promo-demo-3',
+            title: 'Lançamento do Café Premium',
+            description: 'Anúncio de lançamento do novo café premium da casa',
+            schedule: {
+              startDate: yesterday.toISOString(),
+              sendTime: '10:30'
+            },
+            status: 'sent',
+            message: {
+              text: 'Apresentamos nosso novo Café Premium! Grãos selecionados com notas de chocolate e frutas vermelhas. Venha experimentar!',
+              media: null
+            },
+            stats: {
+              sent: 120,
+              delivered: 115,
+              read: 98,
+              failed: 5
+            },
+            createdAt: new Date(yesterday.getTime() - 48 * 3600000).toISOString(),
+            targetAudience: {
+              filters: { tags: ['apreciador-cafe'] },
+              count: 120
+            }
+          }
+        ];
+        
+        // Se houve falha na solicitação, mostrar banner informativo
+        if (!fetchSuccess) {
+          // Criar banner informativo acima da lista de promoções
+          const infoAlert = document.createElement('div');
+          infoAlert.className = 'alert alert-warning alert-dismissible fade show mb-4';
+          infoAlert.innerHTML = `
+            <strong><i class="fas fa-info-circle me-2"></i>Modo de demonstração</strong>
+            <p class="mb-0">Exibindo promoções de exemplo. A conexão com o servidor falhou.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+          `;
+          
+          // Inserir antes da lista de promoções
+          promotionsContainer.parentNode.insertBefore(infoAlert, promotionsContainer);
+        }
+      }
+      
+      // Renderizar promoções - reais ou de exemplo
+      if (promotions.length === 0) {
+        promotionsContainer.innerHTML = `
+          <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle me-2"></i>Nenhuma promoção encontrada
+          </div>
+        `;
         return;
       }
       
-      // Usar o módulo API centralizado para buscar promoções
-      console.log('Buscando promoções da API');
-      const promotions = await API.promotions.getAll();
-      console.log('Promoções recebidas da API:', promotions);
+      // Atualizar os contadores
+      const activeCount = promotions.filter(p => p.status === 'scheduled').length;
+      const sentCount = promotions.filter(p => p.status === 'sent').length;
+      const totalCount = promotions.length;
       
-      // Atualizar a tabela com as promoções
-      this.renderPromotionsTable(promotions);
+      document.getElementById('active-promotions-count')?.innerText = activeCount;
+      document.getElementById('sent-promotions-count')?.innerText = sentCount;
+      document.getElementById('total-promotions-count')?.innerText = totalCount;
       
-      console.log('=== FIM: loadPromotions ===');
+      // Renderizar a lista de promoções
+      promotionsContainer.innerHTML = promotions.map(promotion => `
+        <div class="card mb-3 promotion-card" data-id="${promotion._id}">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <span class="badge ${this.getStatusBadgeClass(promotion.status)} me-2">${this.getStatusLabel(promotion.status)}</span>
+              <strong>${promotion.title}</strong>
+            </div>
+            <small class="text-muted">
+              ${promotion.status === 'scheduled' ? 
+                `Agendada para ${this.formatDate(promotion.schedule.startDate)} às ${promotion.schedule.sendTime}` : 
+                `Enviada em ${this.formatDate(promotion.schedule.startDate)}`}
+            </small>
+          </div>
+          <div class="card-body">
+            <p class="card-text">${promotion.description}</p>
+            <div class="mt-2">
+              <strong>Mensagem:</strong>
+              <p class="message-preview">${promotion.message.text}</p>
+              ${promotion.message.media ? `
+                <div class="media-attachment mt-2">
+                  <i class="fas fa-paperclip me-1"></i>
+                  <a href="${promotion.message.media}" target="_blank">Anexo</a>
+                </div>
+              ` : ''}
+            </div>
+            <div class="audience-info mt-3">
+              <i class="fas fa-users me-1"></i>
+              <strong>Público-alvo:</strong> ${promotion.targetAudience.count} contatos
+              ${promotion.targetAudience.filters.tags && promotion.targetAudience.filters.tags.length > 0 ? 
+                ` <span class="ms-2"><i class="fas fa-tags me-1"></i>Tags: ${promotion.targetAudience.filters.tags.join(', ')}</span>` : 
+                ''
+              }
+            </div>
+            ${promotion.status === 'sent' && promotion.stats ? `
+              <div class="stats-container mt-3">
+                <h6>Estatísticas</h6>
+                <div class="d-flex stats-row">
+                  <div class="stat-item">
+                    <i class="fas fa-paper-plane text-primary"></i>
+                    <span class="stat-value">${promotion.stats.sent}</span>
+                    <span class="stat-label">Enviadas</span>
+                  </div>
+                  <div class="stat-item">
+                    <i class="fas fa-check text-success"></i>
+                    <span class="stat-value">${promotion.stats.delivered}</span>
+                    <span class="stat-label">Entregues</span>
+                  </div>
+                  <div class="stat-item">
+                    <i class="fas fa-eye text-info"></i>
+                    <span class="stat-value">${promotion.stats.read}</span>
+                    <span class="stat-label">Lidas</span>
+                  </div>
+                  <div class="stat-item">
+                    <i class="fas fa-times text-danger"></i>
+                    <span class="stat-value">${promotion.stats.failed}</span>
+                    <span class="stat-label">Falhas</span>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+          <div class="card-footer">
+            <div class="d-flex justify-content-between">
+              <div>
+                <small class="text-muted">Criada em ${this.formatDateTime(promotion.createdAt)}</small>
+              </div>
+              <div>
+                <button class="btn btn-sm btn-outline-secondary me-1" onclick="PromotionsManager.viewPromotion('${promotion._id}')">
+                  <i class="fas fa-eye"></i>
+                </button>
+                ${promotion.status === 'scheduled' ? `
+                  <button class="btn btn-sm btn-outline-primary me-1" onclick="PromotionsManager.editPromotion('${promotion._id}')">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-warning me-1" onclick="PromotionsManager.cancelPromotion('${promotion._id}')">
+                    <i class="fas fa-ban"></i>
+                  </button>
+                ` : ''}
+                <button class="btn btn-sm btn-outline-danger" onclick="PromotionsManager.deletePromotion('${promotion._id}')">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      
     } catch (error) {
-      console.error('=== ERRO: loadPromotions ===');
-      console.error('Mensagem de erro:', error);
+      console.error('Erro ao processar promoções:', error);
       
-      // Verificar se é um erro de autenticação
-      if (error.message && error.message.includes('Sessão expirada')) {
-        Auth.logout();
-        return;
-      }
-      
-      const tableBody = document.querySelector('.promotions-table tbody');
-      if (tableBody) {
-        tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">
-          Erro ao carregar promoções: ${error.message || 'Erro desconhecido'}
-        </td></tr>`;
-      }
+      // Exibir mensagem de erro
+      promotionsContainer.innerHTML = `
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Erro ao processar promoções: ${error.message || 'Erro desconhecido'}
+          <button class="btn btn-sm btn-outline-primary mt-2" onclick="PromotionsManager.loadPromotions()">
+            <i class="fas fa-sync me-1"></i>Tentar novamente
+          </button>
+        </div>
+      `;
     }
   },
   

@@ -92,78 +92,72 @@ router.get('/webhook-info', (req, res) => {
 // Rota de estatísticas
 router.get('/stats', async (req, res) => {
   console.log('=== Processando requisição /stats ===');
-  console.log('Headers da requisição:', req.headers);
+  
+  // Adicionar cabeçalhos CORS e anti-cache
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   try {
-    // Verificar se estamos no modo DEBUG
-    if (process.env.DEBUG_MODE === 'true') {
-      console.log('MODO DEBUG: Retornando dados de exemplo');
-      const demoStats = require('../app').getDebugStats();
-      res.json({
-        success: true,
-        clients: 253,
-        messages: 1573,
-        promotions: 12,
-        deliveryRate: '95%',
-        timestamp: new Date().toISOString()
-      });
-      return;
-    }
-    
     // Verificar estado da conexão com MongoDB
-    if (mongoose.connection.readyState !== 1) {
-      console.log('MongoDB não está conectado. Retornando dados de demonstração.');
-      res.json({
-        success: true,
-        clients: 0,
-        messages: 0,
-        promotions: 0,
-        deliveryRate: '0%',
-        timestamp: new Date().toISOString()
-      });
-      return;
+    const isDbConnected = mongoose.connection.readyState === 1;
+    console.log(`Status da conexão MongoDB: ${isDbConnected ? 'Conectado' : 'Desconectado'}`);
+    
+    let clientCount = 0;
+    let messageCount = 0;
+    let promotionCount = 0;
+    let deliveryRate = 0;
+    
+    // Se estivermos conectados ao banco de dados, buscar dados reais
+    if (isDbConnected) {
+      console.log('Buscando dados estatísticos do banco de dados...');
+      
+      try {
+        clientCount = await Client.countDocuments({ status: { $ne: 'deleted' } });
+        messageCount = await Message.countDocuments();
+        promotionCount = await Promotion.countDocuments({ status: 'active' });
+        
+        const deliveredCount = await Message.countDocuments({ status: 'delivered' });
+        deliveryRate = messageCount > 0 ? Math.round((deliveredCount / messageCount) * 100) : 0;
+        
+        console.log(`Contagem de clientes: ${clientCount}`);
+        console.log(`Contagem de mensagens: ${messageCount}`);
+        console.log(`Contagem de promoções: ${promotionCount}`);
+        console.log(`Taxa de entrega: ${deliveryRate}% (${deliveredCount}/${messageCount})`);
+      } catch (dbError) {
+        console.error('Erro ao consultar banco de dados:', dbError);
+      }
+    } else {
+      console.log('Banco de dados desconectado. Dados estatísticos serão zero.');
     }
     
-    console.log('Buscando contagem de clientes...');
-    const clientCount = await Client.countDocuments({ status: { $ne: 'deleted' } });
-    console.log('Contagem de clientes:', clientCount);
-    
-    console.log('Buscando contagem de mensagens...');
-    const messageCount = await Message.countDocuments();
-    console.log('Contagem de mensagens:', messageCount);
-    
-    console.log('Buscando contagem de promoções...');
-    const promotionCount = await Promotion.countDocuments({ status: 'active' });
-    console.log('Contagem de promoções:', promotionCount);
-    
-    console.log('Calculando taxa de entrega...');
-    const deliveredCount = await Message.countDocuments({ status: 'delivered' });
-    const deliveryRate = messageCount > 0 ? Math.round((deliveredCount / messageCount) * 100) : 0;
-    console.log(`Taxa de entrega: ${deliveryRate}% (${deliveredCount}/${messageCount})`);
-    
+    // Preparar resposta com estrutura consistente
     const statsData = {
       success: true,
       clients: clientCount,
       messages: messageCount,
       promotions: promotionCount,
       deliveryRate: `${deliveryRate}%`,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      dbStatus: {
+        connected: isDbConnected,
+        readyState: mongoose.connection.readyState
+      }
     };
     
-    console.log('Dados de estatísticas para resposta:', statsData);
-    
-    // Adicionar cabeçalhos para evitar cache
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
+    console.log('Enviando resposta de estatísticas:', statsData);
     res.json(statsData);
     console.log('=== Requisição /stats concluída com sucesso ===');
   } catch (error) {
     console.error('=== ERRO na requisição /stats ===', error);
     res.status(500).json({
       success: false,
-      message: `Erro ao obter estatísticas: ${error.message}`
+      error: error.message,
+      message: 'Erro ao processar estatísticas',
+      timestamp: new Date().toISOString()
     });
   }
 });

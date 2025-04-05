@@ -108,82 +108,90 @@ const ClientsManager = {
         return;
       }
       
+      let clients = [];
+      let fetchSuccess = false;
+      
       // Usar o módulo API centralizado para buscar clientes
-      console.log('Buscando clientes da API');
       try {
-        const clients = await API.clients.getAll();
+        console.log('Buscando clientes da API');
+        clients = await API.get('/clients');
         console.log('Clientes recebidos da API:', clients);
-        
-        // Verificar se há clientes
-        if (!clients || clients.length === 0) {
-          console.warn('Nenhum cliente retornado da API');
-          
-          // Para depuração, adicionar um cliente de teste se não houver clientes
-          const mockClient = {
-            _id: 'teste-mock-id',
-            name: 'Cliente de Teste',
-            phone: '554499999999',
-            email: 'teste@exemplo.com',
-            status: 'active',
-            tags: ['teste', 'debug'],
-            lastVisit: new Date().toISOString()
-          };
-          
-          console.log('Adicionando cliente de teste para depuração:', mockClient);
-          this.renderClientsTable([mockClient]);
-        } else {
-          // Atualizar a tabela com os clientes
-          this.renderClientsTable(clients);
-        }
-        
-        // Atualizar contadores
-        this.updateCounters(clients || []);
-        
-        // Atualizar filtros de tags
-        this.updateTagFilters(clients || []);
+        fetchSuccess = true;
       } catch (apiError) {
-        console.error('Erro ao chamar API.clients.getAll():', apiError);
+        console.error('Erro ao buscar clientes da API:', apiError);
         
-        // Verificar erro de API específico
-        if (apiError.message && apiError.message.includes('404')) {
-          console.error('Endpoint /clients não encontrado. Verifique se a rota está correta no backend.');
-          
-          // Exibir mensagem específica na tabela
-          if (tableBody) {
-            tableBody.innerHTML = `
-              <tr>
-                <td colspan="7" class="text-center text-danger">
-                  <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    Erro 404: Endpoint de clientes não encontrado
-                    <p class="small mt-2">Verifique se o servidor está configurado corretamente</p>
-                  </div>
-                </td>
-              </tr>
-            `;
-          }
-        } else if (apiError.message && apiError.message.includes('Sessão expirada')) {
+        // Tratar erros específicos
+        if (apiError?.message?.includes('Sessão expirada')) {
           Auth.logout();
           return;
-        } else {
-          // Erro genérico
-          if (tableBody) {
-            tableBody.innerHTML = `
-              <tr>
-                <td colspan="7" class="text-center text-danger">
-                  <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    Erro ao carregar clientes: ${apiError.message || 'Erro desconhecido'}
-                    <button class="btn btn-sm btn-outline-secondary mt-2" onclick="ClientsManager.loadClients()">
-                      <i class="fas fa-sync me-1"></i>Tentar novamente
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            `;
+        }
+        
+        // Mostrar mensagem de erro, mas continuar com dados de exemplo
+        this.showToast(`Erro ao carregar clientes: ${apiError.message || 'Falha na comunicação com o servidor'}`, 'warning');
+      }
+      
+      // Verificar se temos dados para mostrar
+      if (!clients || !Array.isArray(clients) || clients.length === 0) {
+        console.warn('Nenhum cliente retornado da API ou erro na solicitação. Usando dados de exemplo.');
+        
+        // Dados de exemplo para demonstração
+        clients = [
+          {
+            _id: 'demo-client-1',
+            name: 'Maria Silva',
+            phone: '5511999998888',
+            email: 'maria@exemplo.com',
+            status: 'active',
+            tags: ['vip', 'regular'],
+            lastVisit: new Date(Date.now() - 3 * 86400000).toISOString() // 3 dias atrás
+          },
+          {
+            _id: 'demo-client-2',
+            name: 'João Santos',
+            phone: '5511988887777',
+            email: 'joao@exemplo.com',
+            status: 'inactive',
+            tags: ['novo'],
+            lastVisit: new Date(Date.now() - 15 * 86400000).toISOString() // 15 dias atrás
+          },
+          {
+            _id: 'demo-client-3',
+            name: 'Ana Souza',
+            phone: '5511977776666',
+            email: 'ana@exemplo.com',
+            status: 'active',
+            tags: ['vip', 'promocao'],
+            lastVisit: new Date(Date.now() - 1 * 86400000).toISOString() // 1 dia atrás
+          }
+        ];
+        
+        // Se houve falha na solicitação, mostrar uma notificação para o usuário
+        if (!fetchSuccess) {
+          // Criar banner informativo
+          const infoAlert = document.createElement('div');
+          infoAlert.className = 'alert alert-warning alert-dismissible fade show mb-3';
+          infoAlert.innerHTML = `
+            <strong><i class="fas fa-info-circle me-2"></i>Modo de demonstração</strong>
+            <p class="mb-0">Exibindo dados de exemplo. A conexão com o servidor falhou.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+          `;
+          
+          // Inserir antes da tabela
+          const clientsTable = document.querySelector('.table-responsive');
+          if (clientsTable && clientsTable.parentNode) {
+            clientsTable.parentNode.insertBefore(infoAlert, clientsTable);
           }
         }
       }
+      
+      // Atualizar a tabela com os clientes (reais ou de exemplo)
+      this.renderClientsTable(clients);
+      
+      // Atualizar contadores
+      this.updateCounters(clients);
+      
+      // Atualizar filtros de tags
+      this.updateTagFilters(clients);
       
       console.log('=== FIM: loadClients ===');
     } catch (error) {
@@ -191,26 +199,26 @@ const ClientsManager = {
       console.error('Mensagem de erro:', error);
       console.error('Stack trace:', error.stack);
       
-      // Verificar se é um erro de autenticação
-      if (error.message && error.message.includes('Sessão expirada')) {
-        Auth.logout();
-        return;
-      }
-      
       const tableBody = document.getElementById('clients-table-body');
       if (tableBody) {
         tableBody.innerHTML = `
           <tr>
-            <td colspan="7" class="text-center text-danger">
+            <td colspan="7" class="text-center">
               <div class="alert alert-danger">
-                <i class="fas fa-bug me-2"></i>
-                Erro ao carregar clientes: ${error.message || 'Erro desconhecido'}
-                <p class="small mb-0 mt-2">Verifique o console para mais detalhes (F12)</p>
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Erro ao processar dados: ${error.message || 'Erro desconhecido'}
+                <button class="btn btn-sm btn-outline-primary mt-2" onclick="ClientsManager.loadClients()">
+                  <i class="fas fa-sync me-1"></i>Tentar novamente
+                </button>
               </div>
             </td>
           </tr>
         `;
       }
+      
+      // Dados de exemplo mínimos para manter a interface funcional
+      this.updateCounters([]);
+      this.updateTagFilters([]);
     }
   },
   

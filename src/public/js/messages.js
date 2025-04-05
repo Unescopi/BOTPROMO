@@ -124,8 +124,83 @@ const MessagesManager = {
         endpoint += `?${params.toString()}`;
       }
       
-      const messages = await API.get(endpoint);
+      let messages = [];
+      let fetchSuccess = false;
       
+      try {
+        console.log('Buscando mensagens da API:', endpoint);
+        messages = await API.get(endpoint);
+        console.log('Mensagens recebidas:', messages);
+        fetchSuccess = true;
+      } catch (apiError) {
+        console.error('Erro ao buscar mensagens:', apiError);
+        
+        // Verificar se é um erro de autenticação
+        if (apiError?.message?.includes('Sessão expirada')) {
+          Auth.logout();
+          return;
+        }
+        
+        // Mostrar toast de erro, mas continuar com dados de exemplo
+        this.showToast(`Erro ao carregar mensagens: ${apiError.message || 'Falha na comunicação com o servidor'}`, 'warning');
+      }
+      
+      // Verificar se temos dados para mostrar
+      if (!messages || !Array.isArray(messages) || messages.length === 0) {
+        console.warn('Nenhuma mensagem retornada da API ou erro na solicitação. Usando dados de exemplo.');
+        
+        // Criar mensagens de exemplo para demonstração
+        const now = new Date();
+        messages = [
+          {
+            _id: 'msg-demo-1',
+            to: '5511999998888',
+            text: 'Olá, temos uma promoção especial hoje! 20% de desconto em todos os cafés especiais.',
+            status: 'delivered',
+            createdAt: new Date(now.getTime() - 3 * 3600000).toISOString(), // 3 horas atrás
+            deliveredAt: new Date(now.getTime() - 2.8 * 3600000).toISOString(), // 2.8 horas atrás
+            readAt: new Date(now.getTime() - 2.5 * 3600000).toISOString(), // 2.5 horas atrás
+            media: null
+          },
+          {
+            _id: 'msg-demo-2',
+            to: '5511988887777',
+            text: 'Não perca nossa promoção de quinta-feira: compre um café, leve outro grátis!',
+            status: 'sent',
+            createdAt: new Date(now.getTime() - 1 * 3600000).toISOString(), // 1 hora atrás
+            deliveredAt: null,
+            readAt: null,
+            media: null
+          },
+          {
+            _id: 'msg-demo-3',
+            to: '5511977776666',
+            text: 'Prezado cliente, esta é uma mensagem de confirmação do seu pedido #12345. Obrigado pela preferência!',
+            status: 'failed',
+            createdAt: new Date(now.getTime() - 5 * 3600000).toISOString(), // 5 horas atrás
+            deliveredAt: null,
+            readAt: null,
+            media: null
+          }
+        ];
+        
+        // Se houve falha na solicitação, mostrar banner informativo
+        if (!fetchSuccess) {
+          // Criar banner informativo acima da lista de mensagens
+          const infoAlert = document.createElement('div');
+          infoAlert.className = 'alert alert-warning alert-dismissible fade show mb-4';
+          infoAlert.innerHTML = `
+            <strong><i class="fas fa-info-circle me-2"></i>Modo de demonstração</strong>
+            <p class="mb-0">Exibindo mensagens de exemplo. A conexão com o servidor falhou.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+          `;
+          
+          // Inserir antes da lista de mensagens
+          messagesContainer.parentNode.insertBefore(infoAlert, messagesContainer);
+        }
+      }
+      
+      // Renderizar mensagens - reais ou de exemplo
       if (messages.length === 0) {
         messagesContainer.innerHTML = `
           <div class="alert alert-info text-center">
@@ -163,9 +238,14 @@ const MessagesManager = {
               </small>
             </div>
             <div>
-              <button class="btn btn-sm btn-outline-secondary me-1" onclick="MessagesManager.resendMessage('${message._id}')">
-                <i class="fas fa-sync-alt"></i>
+              <button class="btn btn-sm btn-outline-secondary me-1" onclick="MessagesManager.viewMessage('${message._id}')">
+                <i class="fas fa-eye"></i>
               </button>
+              ${message.status === 'failed' ? `
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="MessagesManager.resendMessage('${message._id}')">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+              ` : ''}
               <button class="btn btn-sm btn-outline-danger" onclick="MessagesManager.deleteMessage('${message._id}')">
                 <i class="fas fa-trash"></i>
               </button>
@@ -175,23 +255,26 @@ const MessagesManager = {
       `).join('');
       
     } catch (error) {
-      console.error('Erro ao carregar mensagens:', error);
+      console.error('Erro ao processar mensagens:', error);
       
-      // Verificar se é um erro de autenticação
-      if (error.message && error.message.includes('Sessão expirada')) {
-        Auth.logout();
-        return;
-      }
-      
-      if (messagesContainer) {
-        messagesContainer.innerHTML = `
-          <div class="alert alert-danger text-center">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            Erro ao carregar mensagens: ${error.message || 'Erro desconhecido'}
-          </div>
-        `;
-      }
+      // Exibir mensagem de erro
+      messagesContainer.innerHTML = `
+        <div class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Erro ao processar mensagens: ${error.message || 'Erro desconhecido'}
+          <button class="btn btn-sm btn-outline-primary mt-2" onclick="MessagesManager.loadMessages()">
+            <i class="fas fa-sync me-1"></i>Tentar novamente
+          </button>
+        </div>
+      `;
     }
+  },
+  
+  // Método para visualizar detalhes da mensagem
+  viewMessage(messageId) {
+    console.log('Visualizando detalhes da mensagem:', messageId);
+    // Implementar lógica para mostrar detalhes em um modal
+    this.showToast('Visualização detalhada será implementada em breve!', 'info');
   },
   
   async sendMessage() {

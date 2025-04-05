@@ -61,6 +61,7 @@ const API = {
       
       // Realizar a requisição
       const response = await fetch(url, {
+        method: 'GET',
         headers: this.getAuthHeaders(),
         cache: 'no-store'
       });
@@ -69,6 +70,8 @@ const API = {
       
       // Verificar se a resposta foi bem-sucedida
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Erro HTTP ${response.status}:`, errorText);
         throw new Error(`Erro HTTP: ${response.status}`);
       }
       
@@ -77,46 +80,24 @@ const API = {
       console.log('Texto da resposta:', responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''));
       
       // Tentar parsear como JSON, se falhar, retornar o texto
-      let responseData;
       try {
-        responseData = JSON.parse(responseText);
-      } catch (e) {
-        console.warn('Resposta não é um JSON válido, retornando como texto:', responseText);
-        return { text: responseText };
-      }
-      
-      // VERSÃO DIRETA: Se API retornar dados em formato aninhado, extrair
-      if (responseData && responseData.data && typeof responseData.data === 'object') {
-        console.log('Extraindo dados aninhados do campo "data"');
-        return responseData.data;
-      }
-      
-      // Se a API retornar uma resposta de sucesso com stats, retornar diretamente
-      if (responseData && responseData.success === true && 
-         (responseData.clients !== undefined || responseData.messages !== undefined)) {
-        console.log('Dados de estatísticas encontrados:', responseData);
+        const responseData = JSON.parse(responseText);
+        console.log('Dados da resposta JSON:', responseData);
+        
+        // Verificar diferentes formatos de resposta e retornar dados na estrutura correta
+        if (responseData && responseData.data !== undefined) {
+          return responseData.data;
+        }
+        
+        // Formato simples: apenas retornar os dados
         return responseData;
+      } catch (parseError) {
+        console.warn('Resposta não é um JSON válido:', parseError);
+        return { text: responseText, parseError: true };
       }
-      
-      console.log('Dados da resposta:', responseData);
-      return responseData || {};
     } catch (error) {
       console.error(`Erro na requisição GET para ${endpoint}:`, error);
-      
-      // DADOS DE EXEMPLO COMO FALLBACK
-      if (endpoint === '/stats') {
-        console.log('Retornando dados de exemplo para /stats devido a erro');
-        return {
-          success: true,
-          clients: 253,
-          messages: 1573,
-          promotions: 12,
-          deliveryRate: '95%',
-          timestamp: new Date().toISOString()
-        };
-      }
-      
-      return null;
+      throw error; // Propagar o erro para permitir tratamento específico
     }
   },
 
