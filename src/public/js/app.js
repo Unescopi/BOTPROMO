@@ -9,6 +9,23 @@ const App = {
   init() {
     console.log('Inicializando aplicação...');
     
+    // Verificar se estamos em modo de desenvolvimento
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    if (isDevelopment) {
+      // MODO DE EMERGÊNCIA: Ignorar testes de conexão e ir direto para o dashboard
+      console.log('MODO DE EMERGÊNCIA: Carregando dashboard diretamente');
+      this.setupEventListeners();
+      this.setupGlobalEventDelegation();
+      
+      // Carregar dashboard com dados de exemplo forçados
+      setTimeout(() => {
+        this.loadDashboard(true);
+      }, 1000);
+      return;
+    }
+    
+    // Código real de inicialização
     // Adicionar timeout para permitir acesso forçado
     let connectionTimedOut = false;
     const timeoutId = setTimeout(() => {

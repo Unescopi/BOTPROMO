@@ -498,35 +498,56 @@ class UI {
   }
 
   /**
-   * Adiciona recursos de depuração extras
+   * Adiciona recursos de debug no dashboard
    */
   addDebugFeatures() {
-    // Verificar se está na página dashboard e não adicionou ainda
-    if (this.currentPage !== 'dashboard' || document.getElementById('force-demo-button')) return;
+    // Adicionar banner de modo de demonstração e botão para forçar dados
+    const dashboard = document.querySelector('#dashboard-page');
+    if (!dashboard) return;
     
-    // Ver se já existe o painel diagnóstico
-    const diagnosticPanel = document.getElementById('diagnostic-panel');
-    
-    // Se não existir, criar um botão especial para forçar dados de exemplo
-    if (!diagnosticPanel) {
-      console.log('Adicionando botão de depuração ao dashboard');
-      
-      const debugButton = document.createElement('div');
-      debugButton.className = 'position-fixed bottom-0 end-0 m-3';
-      debugButton.innerHTML = `
-        <button id="force-demo-button" class="btn btn-warning">
-          <i class="fas fa-bug me-2"></i>Forçar Dados
+    // Criar banner de demonstração grande e bem visível
+    const debugBanner = document.createElement('div');
+    debugBanner.className = 'alert alert-success border-success mb-4';
+    debugBanner.style.fontSize = '1.1rem';
+    debugBanner.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h4 class="alert-heading"><i class="fas fa-tools me-2"></i>MODO DE DEMONSTRAÇÃO ATIVADO</h4>
+          <p class="mb-0">O sistema está em modo offline, exibindo dados de exemplo.</p>
+        </div>
+        <button id="force-example-data" class="btn btn-success btn-lg">
+          <i class="fas fa-sync-alt me-2"></i>Recarregar Dados de Exemplo
         </button>
+      </div>
+    `;
+    
+    // Inserir no início do dashboard
+    dashboard.insertBefore(debugBanner, dashboard.firstChild);
+    
+    // Adicionar evento ao botão de forçar dados
+    document.getElementById('force-example-data').addEventListener('click', () => {
+      this.forceExampleData();
+    });
+    
+    // Adicionar botão de debug ao menu
+    const navbarNav = document.querySelector('.navbar-nav');
+    if (navbarNav) {
+      const debugButton = document.createElement('li');
+      debugButton.className = 'nav-item';
+      debugButton.innerHTML = `
+        <a class="nav-link bg-success text-white" href="#" id="debug-menu-btn">
+          <i class="fas fa-bug me-1"></i>Modo Demo
+        </a>
       `;
-      
-      document.body.appendChild(debugButton);
+      navbarNav.appendChild(debugButton);
       
       // Adicionar evento ao botão
-      document.getElementById('force-demo-button').addEventListener('click', () => {
+      document.getElementById('debug-menu-btn').addEventListener('click', (e) => {
+        e.preventDefault();
         this.forceExampleData();
       });
     }
-  }
+  },
   
   /**
    * Força o uso de dados de exemplo (para debug)
@@ -566,7 +587,7 @@ class UI {
     
     // Mostrar notificação
     this.showNotification('Dados de exemplo aplicados com sucesso!', 'success');
-  }
+  },
   
   /**
    * Mostra uma notificação
