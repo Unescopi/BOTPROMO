@@ -98,7 +98,7 @@ const ClientsManager = {
       // Mostrar indicador de carregamento
       const tableBody = document.getElementById('clients-table-body');
       if (tableBody) {
-        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Carregando clientes...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando clientes...</span></div><p class="mt-2">Carregando clientes...</p></td></tr>';
       }
       
       // Verificar se o usuário está autenticado
@@ -110,22 +110,86 @@ const ClientsManager = {
       
       // Usar o módulo API centralizado para buscar clientes
       console.log('Buscando clientes da API');
-      const clients = await API.clients.getAll();
-      console.log('Clientes recebidos da API:', clients);
-      
-      // Atualizar a tabela com os clientes
-      this.renderClientsTable(clients);
-      
-      // Atualizar contadores
-      this.updateCounters(clients);
-      
-      // Atualizar filtros de tags
-      this.updateTagFilters(clients);
+      try {
+        const clients = await API.clients.getAll();
+        console.log('Clientes recebidos da API:', clients);
+        
+        // Verificar se há clientes
+        if (!clients || clients.length === 0) {
+          console.warn('Nenhum cliente retornado da API');
+          
+          // Para depuração, adicionar um cliente de teste se não houver clientes
+          const mockClient = {
+            _id: 'teste-mock-id',
+            name: 'Cliente de Teste',
+            phone: '554499999999',
+            email: 'teste@exemplo.com',
+            status: 'active',
+            tags: ['teste', 'debug'],
+            lastVisit: new Date().toISOString()
+          };
+          
+          console.log('Adicionando cliente de teste para depuração:', mockClient);
+          this.renderClientsTable([mockClient]);
+        } else {
+          // Atualizar a tabela com os clientes
+          this.renderClientsTable(clients);
+        }
+        
+        // Atualizar contadores
+        this.updateCounters(clients || []);
+        
+        // Atualizar filtros de tags
+        this.updateTagFilters(clients || []);
+      } catch (apiError) {
+        console.error('Erro ao chamar API.clients.getAll():', apiError);
+        
+        // Verificar erro de API específico
+        if (apiError.message && apiError.message.includes('404')) {
+          console.error('Endpoint /clients não encontrado. Verifique se a rota está correta no backend.');
+          
+          // Exibir mensagem específica na tabela
+          if (tableBody) {
+            tableBody.innerHTML = `
+              <tr>
+                <td colspan="7" class="text-center text-danger">
+                  <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Erro 404: Endpoint de clientes não encontrado
+                    <p class="small mt-2">Verifique se o servidor está configurado corretamente</p>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }
+        } else if (apiError.message && apiError.message.includes('Sessão expirada')) {
+          Auth.logout();
+          return;
+        } else {
+          // Erro genérico
+          if (tableBody) {
+            tableBody.innerHTML = `
+              <tr>
+                <td colspan="7" class="text-center text-danger">
+                  <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Erro ao carregar clientes: ${apiError.message || 'Erro desconhecido'}
+                    <button class="btn btn-sm btn-outline-secondary mt-2" onclick="ClientsManager.loadClients()">
+                      <i class="fas fa-sync me-1"></i>Tentar novamente
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }
+        }
+      }
       
       console.log('=== FIM: loadClients ===');
     } catch (error) {
       console.error('=== ERRO: loadClients ===');
       console.error('Mensagem de erro:', error);
+      console.error('Stack trace:', error.stack);
       
       // Verificar se é um erro de autenticação
       if (error.message && error.message.includes('Sessão expirada')) {
@@ -135,9 +199,17 @@ const ClientsManager = {
       
       const tableBody = document.getElementById('clients-table-body');
       if (tableBody) {
-        tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">
-          Erro ao carregar clientes: ${error.message || 'Erro desconhecido'}
-        </td></tr>`;
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="7" class="text-center text-danger">
+              <div class="alert alert-danger">
+                <i class="fas fa-bug me-2"></i>
+                Erro ao carregar clientes: ${error.message || 'Erro desconhecido'}
+                <p class="small mb-0 mt-2">Verifique o console para mais detalhes (F12)</p>
+              </div>
+            </td>
+          </tr>
+        `;
       }
     }
   },
@@ -603,7 +675,7 @@ const ClientsManager = {
     
     if (!clients || clients.length === 0) {
       console.log('Nenhum cliente encontrado');
-      tableBody.innerHTML = '<tr><td colspan="7" class="text-center">Nenhum cliente encontrado</td></tr>';
+      tableBody.innerHTML = '<tr><td colspan="8" class="text-center">Nenhum cliente encontrado</td></tr>';
       return;
     }
     
@@ -617,26 +689,45 @@ const ClientsManager = {
       const row = document.createElement('tr');
       row.dataset.id = client._id;
       
+      // Verificar propriedades obrigatórias
+      const name = client.name || 'Nome não definido';
+      const phone = client.phone || 'Telefone não definido';
+      const email = client.email || '-';
+      const status = client.status || 'active';
+      const tags = Array.isArray(client.tags) ? client.tags : [];
+      
+      // Formatar data da última visita
+      let lastVisitDisplay = '-';
+      if (client.lastVisit) {
+        try {
+          const lastVisitDate = new Date(client.lastVisit);
+          lastVisitDisplay = isNaN(lastVisitDate) ? '-' : lastVisitDate.toLocaleDateString('pt-BR');
+        } catch (e) {
+          console.warn('Erro ao formatar data da última visita:', e);
+        }
+      }
+      
       // Adicionar as células
       row.innerHTML = `
         <td>
           <div class="form-check">
-            <input class="form-check-input client-checkbox" type="checkbox" value="${client._id}">
+            <input class="form-check-input client-checkbox" type="checkbox" value="${client._id}" data-id="${client._id}">
           </div>
         </td>
-        <td>${client.name}</td>
-        <td>${client.phone}</td>
-        <td>${client.email || '-'}</td>
+        <td>${name}</td>
+        <td>${phone}</td>
+        <td>${email}</td>
         <td>
-          <span class="badge ${this.getStatusBadgeClass(client.status)}">
-            ${this.getStatusLabel(client.status)}
-          </span>
-        </td>
-        <td>
-          ${client.tags && client.tags.length > 0 
-            ? client.tags.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('') 
+          ${tags.length > 0 
+            ? tags.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('') 
             : '-'}
         </td>
+        <td>
+          <span class="badge ${this.getStatusBadgeClass(status)}">
+            ${this.getStatusLabel(status)}
+          </span>
+        </td>
+        <td>${lastVisitDisplay}</td>
         <td>
           <div class="btn-group btn-group-sm">
             <button class="btn btn-outline-primary edit-client-btn" data-client-id="${client._id}">
@@ -654,6 +745,12 @@ const ClientsManager = {
     
     // Adicionar manipuladores de eventos para os botões
     this.addClientButtonHandlers();
+    
+    // Atualizar contador de clientes
+    const totalCount = document.getElementById('total-count');
+    if (totalCount) {
+      totalCount.textContent = clients.length;
+    }
     
     console.log('=== FIM: renderClientsTable ===');
   }

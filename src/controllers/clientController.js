@@ -201,6 +201,8 @@ exports.importClients = async (req, res) => {
 exports.getClients = async (req, res) => {
   try {
     console.log('=== INÍCIO: getClients ===');
+    console.log('Query params recebidos:', req.query);
+    console.log('Usuário autenticado:', req.user?.id);
     
     // Opções de paginação
     const page = parseInt(req.query.page) || 1;
@@ -213,11 +215,13 @@ exports.getClients = async (req, res) => {
     // Filtro por status
     if (req.query.status) {
       filter.status = req.query.status;
+      console.log('Aplicando filtro de status:', req.query.status);
     }
     
     // Filtro por tags
     if (req.query.tag) {
       filter.tags = req.query.tag;
+      console.log('Aplicando filtro de tag:', req.query.tag);
     }
     
     // Filtro por busca
@@ -228,30 +232,51 @@ exports.getClients = async (req, res) => {
         { phone: searchRegex },
         { email: searchRegex }
       ];
+      console.log('Aplicando filtro de busca:', req.query.search);
     }
     
     console.log('Filtros aplicados:', filter);
     
     // Executar a consulta
+    console.log('Executando consulta no MongoDB...');
     const clients = await Client.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
+    
+    console.log(`Consulta retornou ${clients.length} clientes`);
+    
+    if (clients.length > 0) {
+      console.log('Amostra do primeiro cliente:', {
+        _id: clients[0]._id,
+        name: clients[0].name,
+        phone: clients[0].phone
+      });
+    }
     
     // Contar total de registros
     const total = await Client.countDocuments(filter);
     
     console.log(`Encontrados ${clients.length} clientes de um total de ${total}`);
     
-    // Retornar os resultados
-    res.status(200).json({
+    // Definir cabeçalhos específicos para otimizar a resposta
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    // Preparar dados para resposta
+    const responseData = {
       success: true,
       count: clients.length,
       total,
       page,
       pages: Math.ceil(total / limit),
       data: clients
-    });
+    };
+    
+    console.log('Enviando resposta...');
+    // Retornar os resultados
+    res.status(200).json(responseData);
     
     console.log('=== FIM: getClients ===');
   } catch (error) {
@@ -259,9 +284,15 @@ exports.getClients = async (req, res) => {
     console.error('Mensagem de erro:', error.message);
     console.error('Stack trace:', error.stack);
     
+    // Retornar erro com cabeçalhos CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
     res.status(500).json({
       success: false,
-      message: `Erro ao buscar clientes: ${error.message}`
+      message: `Erro ao buscar clientes: ${error.message}`,
+      error: process.env.NODE_ENV === 'production' ? undefined : error.stack
     });
   }
 };

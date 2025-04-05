@@ -345,7 +345,7 @@ const API = {
   // API de Clientes
   clients: {
     async getAll(params = {}) {
-      console.log('=== API.clients.getAll ===');
+      console.log('=== INÍCIO: API.clients.getAll ===');
       console.log('Parâmetros:', params);
       
       try {
@@ -356,14 +356,87 @@ const API = {
         });
         
         const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
-        console.log('Query string:', queryString);
+        const endpoint = '/clients' + queryString;
         
-        const response = await API.get(`/clients${queryString}`);
-        console.log('Resposta da API:', response);
+        console.log('URL base da API:', API.baseUrl);
+        console.log('Endpoint completo:', API.baseUrl + endpoint);
         
-        return response.data || [];
+        // Adicionar timeout para evitar espera infinita
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        // Fazer a requisição diretamente em vez de usar fetch para ter mais controle
+        console.log('Enviando requisição GET para clientes...');
+        
+        // Garantir que a URL base não tenha barras duplicadas
+        const baseUrl = API.baseUrl.endsWith('/') ? API.baseUrl.slice(0, -1) : API.baseUrl;
+        const fullUrl = baseUrl + (endpoint.startsWith('/') ? endpoint : '/' + endpoint);
+        
+        console.log('URL completa da requisição:', fullUrl);
+        
+        const response = await fetch(fullUrl, {
+          method: 'GET',  // Explicitamente definir o método como GET
+          headers: API.getAuthHeaders(),
+          signal: controller.signal,
+          cache: 'no-store'
+        });
+        
+        clearTimeout(timeoutId);
+        
+        console.log('Status da resposta:', response.status);
+        console.log('Headers da resposta:', Object.fromEntries([...response.headers.entries()]));
+        
+        if (response.status === 401) {
+          console.error('Erro de autenticação ao buscar clientes');
+          API.handleAuthError();
+          throw new Error('Sessão expirada. Por favor, faça login novamente.');
+        }
+        
+        if (!response.ok) {
+          console.error(`Erro HTTP ao buscar clientes: ${response.status}`);
+          throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        
+        // Clonar a resposta para verificar o conteúdo bruto
+        const responseClone = response.clone();
+        const rawText = await responseClone.text();
+        console.log('Texto bruto da resposta:', rawText);
+        
+        let data;
+        try {
+          if (rawText) {
+            data = JSON.parse(rawText);
+            console.log('Dados parseados da resposta:', data);
+          } else {
+            console.warn('Resposta vazia ao buscar clientes');
+            data = {};
+          }
+        } catch (e) {
+          console.error('Erro ao parsear JSON da resposta:', e);
+          console.error('Texto que causou erro:', rawText);
+          throw new Error('Erro ao processar resposta do servidor');
+        }
+        
+        if (data && data.data && Array.isArray(data.data)) {
+          console.log(`Encontrados ${data.data.length} clientes`);
+          console.log('=== FIM: API.clients.getAll ===');
+          return data.data;
+        } else {
+          // Tentar extrair os dados em outro formato
+          if (data && Array.isArray(data)) {
+            console.log(`Encontrados ${data.length} clientes (formato alternativo)`);
+            console.log('=== FIM: API.clients.getAll com formato alternativo ===');
+            return data;
+          }
+          
+          console.warn('Resposta não contém array de clientes:', data);
+          console.log('=== FIM: API.clients.getAll com retorno vazio ===');
+          return [];
+        }
       } catch (error) {
         console.error('Erro ao buscar clientes:', error);
+        console.error('Stack:', error.stack);
+        console.log('=== FIM: API.clients.getAll com erro ===');
         throw error;
       }
     },

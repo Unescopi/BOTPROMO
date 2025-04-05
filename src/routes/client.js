@@ -26,6 +26,17 @@ router.get('/', auth.verifyToken, (req, res, next) => {
   console.log('=== REQUISIÇÃO GET /clients ===');
   console.log('Query params:', req.query);
   console.log('User ID:', req.user?.id);
+  console.log('Headers:', req.headers);
+  console.log('URL completa:', req.originalUrl);
+  
+  // Adicionar cabeçalhos para evitar cache e permitir CORS
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
   next();
 }, clientController.getClients);
 
