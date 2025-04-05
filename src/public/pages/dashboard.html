@@ -137,9 +137,14 @@
   <div class="card mt-4" id="diagnostic-panel">
     <div class="card-header bg-light d-flex justify-content-between align-items-center">
       <h5 class="mb-0">Diagnóstico do Sistema</h5>
-      <button class="btn btn-sm btn-outline-secondary" id="refresh-stats">
-        <i class="fas fa-sync-alt me-1"></i>Atualizar Dados
-      </button>
+      <div>
+        <button class="btn btn-sm btn-warning me-2" id="force-demo-data">
+          <i class="fas fa-flask me-1"></i>Forçar Dados de Exemplo
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" id="refresh-stats">
+          <i class="fas fa-sync-alt me-1"></i>Atualizar Dados
+        </button>
+      </div>
     </div>
     <div class="card-body">
       <div class="row">
@@ -150,12 +155,18 @@
               <p><strong>API:</strong> <span id="api-status">Verificando...</span></p>
               <p><strong>MongoDB:</strong> <span id="db-status">Verificando...</span></p>
               <p><strong>Webhook:</strong> <span id="webhook-connection-status">Verificando...</span></p>
+              <p><strong>Modo:</strong> <span id="debug-mode-status"></span></p>
             </div>
           </div>
         </div>
         <div class="col-md-8">
           <div class="card">
-            <div class="card-header bg-light">Dados Brutos da API</div>
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+              <span>Dados Brutos da API</span>
+              <button class="btn btn-sm btn-outline-secondary" id="copy-raw-data">
+                <i class="fas fa-copy"></i> Copiar
+              </button>
+            </div>
             <div class="card-body">
               <pre id="api-raw-data" style="max-height: 200px; overflow: auto;">Aguardando dados...</pre>
             </div>
@@ -169,6 +180,80 @@
 <script>
   // Script para inicializar o painel de diagnóstico
   document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se estamos no modo DEBUG
+    fetch('/api/status')
+      .then(response => response.json())
+      .catch(() => ({}))
+      .then(data => {
+        const debugModeStatus = document.getElementById('debug-mode-status');
+        if (debugModeStatus) {
+          const isDebug = data?.config?.debugMode === true || data?.environment === 'development';
+          if (isDebug) {
+            debugModeStatus.innerHTML = '<span class="badge bg-warning">DEBUG</span>';
+          } else {
+            debugModeStatus.innerHTML = '<span class="badge bg-success">PRODUÇÃO</span>';
+          }
+        }
+      });
+    
+    // Botão para forçar dados de exemplo
+    const forceDemoButton = document.getElementById('force-demo-data');
+    if (forceDemoButton) {
+      forceDemoButton.addEventListener('click', function() {
+        // Dados de exemplo fixos
+        const demoData = {
+          success: true,
+          clients: 253,
+          messages: 1573,
+          promotions: 12,
+          deliveryRate: '95%',
+          newClients: 15,
+          scheduledPromotions: 5,
+          readRate: '75%',
+          responses: 215
+        };
+        
+        // Atualizar os contadores
+        document.querySelector('.client-count').textContent = demoData.clients;
+        document.querySelector('.active-promos').textContent = demoData.promotions;
+        document.querySelector('.messages-sent').textContent = demoData.messages;
+        document.querySelector('.delivery-rate').textContent = demoData.deliveryRate.replace('%', '');
+        
+        // Atualizar dados secundários
+        document.querySelector('.new-clients').textContent = demoData.newClients;
+        document.querySelector('.scheduled-promos').textContent = demoData.scheduledPromotions;
+        document.querySelector('.read-rate').textContent = demoData.readRate;
+        document.querySelector('.response-count').textContent = demoData.responses;
+        
+        // Atualizar painel de diagnóstico
+        const rawDataElement = document.getElementById('api-raw-data');
+        if (rawDataElement) {
+          rawDataElement.textContent = JSON.stringify(demoData, null, 2);
+        }
+        
+        // Mostrar mensagem
+        alert('Dados de exemplo aplicados com sucesso!');
+      });
+    }
+    
+    // Botão para copiar dados brutos
+    const copyRawDataButton = document.getElementById('copy-raw-data');
+    if (copyRawDataButton) {
+      copyRawDataButton.addEventListener('click', function() {
+        const rawDataElement = document.getElementById('api-raw-data');
+        if (rawDataElement) {
+          navigator.clipboard.writeText(rawDataElement.textContent)
+            .then(() => {
+              alert('Dados copiados para o clipboard!');
+            })
+            .catch(err => {
+              console.error('Erro ao copiar dados:', err);
+              alert('Erro ao copiar dados: ' + err);
+            });
+        }
+      });
+    }
+    
     const refreshButton = document.getElementById('refresh-stats');
     if (refreshButton) {
       refreshButton.addEventListener('click', function() {
@@ -195,6 +280,17 @@
             } else {
               document.getElementById('db-status').innerHTML = 
                 '<span class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>Desconectado</span>';
+            }
+            
+            // Verificar modo
+            const debugModeStatus = document.getElementById('debug-mode-status');
+            if (debugModeStatus) {
+              const isDebug = data?.config?.debugMode === true || data?.environment === 'development';
+              if (isDebug) {
+                debugModeStatus.innerHTML = '<span class="badge bg-warning">DEBUG</span>';
+              } else {
+                debugModeStatus.innerHTML = '<span class="badge bg-success">PRODUÇÃO</span>';
+              }
             }
           })
           .catch(error => {
