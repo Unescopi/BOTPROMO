@@ -203,6 +203,10 @@ app.use((err, req, res, next) => {
   }
 });
 
+// Verificar dependências
+const dependencyChecker = require('./src/utils/dependencyChecker');
+dependencyChecker.checkDependencies();
+
 // Inicializando o servidor
 app.listen(PORT, () => {
   logger.info(`Servidor rodando na porta ${PORT}`);

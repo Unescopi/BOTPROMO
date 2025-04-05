@@ -6,12 +6,26 @@
  */
 const fs = require('fs');
 const path = require('path');
-const json2csv = require('json2csv').Parser;
-const ExcelJS = require('exceljs');
 const logger = require('./logger');
 const Client = require('../models/Client');
 const Promotion = require('../models/Promotion');
 const Message = require('../models/Message');
+
+// Importar módulos opcionais com tratamento de erro
+let json2csv = null;
+let ExcelJS = null;
+
+try {
+  json2csv = require('json2csv').Parser;
+} catch (error) {
+  logger.warn('Módulo json2csv não encontrado. Exportação para CSV não estará disponível.');
+}
+
+try {
+  ExcelJS = require('exceljs');
+} catch (error) {
+  logger.warn('Módulo exceljs não encontrado. Exportação para Excel não estará disponível.');
+}
 
 class DataExporter {
   constructor() {
@@ -59,6 +73,10 @@ class DataExporter {
    * Exporta clientes para CSV
    */
   async exportClientsToCsv(filter = {}) {
+    if (!json2csv) {
+      throw new Error('Módulo json2csv não está instalado. Execute: npm install json2csv');
+    }
+    
     try {
       const clients = await Client.find(filter).lean();
       
@@ -102,6 +120,10 @@ class DataExporter {
    * Exporta clientes para Excel
    */
   async exportClientsToExcel(filter = {}) {
+    if (!ExcelJS) {
+      throw new Error('Módulo exceljs não está instalado. Execute: npm install exceljs');
+    }
+    
     try {
       const clients = await Client.find(filter).lean();
       
@@ -114,30 +136,31 @@ class DataExporter {
         { header: 'Nome', key: 'name', width: 30 },
         { header: 'Telefone', key: 'phone', width: 20 },
         { header: 'Email', key: 'email', width: 30 },
-        { header: 'Data de Nascimento', key: 'birthdate', width: 20 },
+        { header: 'Data de Nascimento', key: 'birthdate', width: 15 },
         { header: 'Status', key: 'status', width: 15 },
-        { header: 'Tags', key: 'tags', width: 30 },
-        { header: 'Notas', key: 'notes', width: 50 },
+        { header: 'Tags', key: 'tags', width: 20 },
+        { header: 'Notas', key: 'notes', width: 40 },
         { header: 'Criado em', key: 'createdAt', width: 20 },
         { header: 'Atualizado em', key: 'updatedAt', width: 20 }
       ];
       
       // Adicionar dados
-      worksheet.addRows(clients.map(client => ({
-        ...client,
-        birthdate: client.birthdate ? new Date(client.birthdate).toLocaleDateString('pt-BR') : '',
-        tags: client.tags ? client.tags.join(', ') : '',
-        createdAt: client.createdAt ? new Date(client.createdAt).toLocaleString('pt-BR') : '',
-        updatedAt: client.updatedAt ? new Date(client.updatedAt).toLocaleString('pt-BR') : ''
-      })));
+      clients.forEach(client => {
+        worksheet.addRow({
+          name: client.name,
+          phone: client.phone,
+          email: client.email,
+          birthdate: client.birthdate ? new Date(client.birthdate).toLocaleDateString('pt-BR') : '',
+          status: client.status,
+          tags: client.tags ? client.tags.join(', ') : '',
+          notes: client.notes,
+          createdAt: client.createdAt ? new Date(client.createdAt).toLocaleString('pt-BR') : '',
+          updatedAt: client.updatedAt ? new Date(client.updatedAt).toLocaleString('pt-BR') : ''
+        });
+      });
       
       // Estilizar cabeçalho
       worksheet.getRow(1).font = { bold: true };
-      worksheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE0E0E0' }
-      };
       
       const filename = `clients_${new Date().toISOString().replace(/:/g, '-')}.xlsx`;
       const filepath = path.join(this.exportDir, filename);
@@ -259,9 +282,6 @@ class DataExporter {
         path.join(backupDir, 'metadata.json'),
         JSON.stringify(metadata, null, 2)
       );
-      
-      // Criar arquivo ZIP (opcional)
-      // Requer módulo adicional como 'archiver'
       
       logger.info(`Backup completo criado em: ${backupDir}`);
       
