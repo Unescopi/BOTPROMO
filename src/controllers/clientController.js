@@ -197,102 +197,80 @@ exports.importClients = async (req, res) => {
   }
 };
 
-// Listar todos os clientes com paginação e filtros
+/**
+ * Obter todos os clientes
+ */
 exports.getClients = async (req, res) => {
   try {
-    console.log('=== INÍCIO: getClients ===');
-    console.log('Query params recebidos:', req.query);
-    console.log('Usuário autenticado:', req.user?.id);
+    console.log('=== INÍCIO: getClients controller ===');
+    console.log('IP da requisição:', req.ip);
+    console.log('Método:', req.method);
+    console.log('URL:', req.originalUrl);
+    console.log('Headers:', req.headers);
+    console.log('Query params:', req.query);
     
-    // Opções de paginação
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const skip = (page - 1) * limit;
+    // Adicionar headers para debug CORS
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
-    // Opções de filtro
-    const filter = {};
+    // Filtros
+    const query = {};
     
-    // Filtro por status
     if (req.query.status) {
-      filter.status = req.query.status;
-      console.log('Aplicando filtro de status:', req.query.status);
+      query.status = req.query.status;
     }
     
-    // Filtro por tags
     if (req.query.tag) {
-      filter.tags = req.query.tag;
-      console.log('Aplicando filtro de tag:', req.query.tag);
+      query.tags = { $in: [req.query.tag] };
     }
     
-    // Filtro por busca
     if (req.query.search) {
       const searchRegex = new RegExp(req.query.search, 'i');
-      filter.$or = [
+      query.$or = [
         { name: searchRegex },
         { phone: searchRegex },
         { email: searchRegex }
       ];
-      console.log('Aplicando filtro de busca:', req.query.search);
     }
     
-    console.log('Filtros aplicados:', filter);
+    console.log('Filtros de busca:', query);
     
-    // Executar a consulta
-    console.log('Executando consulta no MongoDB...');
-    const clients = await Client.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    // Buscar clientes no banco de dados
+    let clients = await Client.find(query).lean();
+    console.log(`Encontrados ${clients.length} clientes`);
     
-    console.log(`Consulta retornou ${clients.length} clientes`);
+    // Garantir que os clientes têm todos os campos necessários
+    clients = clients.map(client => ({
+      _id: client._id.toString(), // Convertendo ObjectId para string
+      name: client.name || 'Sem nome',
+      phone: client.phone || 'Sem telefone',
+      email: client.email || '',
+      status: client.status || 'active',
+      tags: Array.isArray(client.tags) ? client.tags : [],
+      lastVisit: client.lastVisit || null,
+      // Adicione outros campos necessários aqui
+    }));
     
+    // Log dos primeiros clientes para debug
     if (clients.length > 0) {
-      console.log('Amostra do primeiro cliente:', {
-        _id: clients[0]._id,
-        name: clients[0].name,
-        phone: clients[0].phone
-      });
+      console.log('Exemplo do primeiro cliente:', clients[0]);
     }
     
-    // Contar total de registros
-    const total = await Client.countDocuments(filter);
+    console.log('=== FIM: getClients controller ===');
     
-    console.log(`Encontrados ${clients.length} clientes de um total de ${total}`);
-    
-    // Definir cabeçalhos específicos para otimizar a resposta
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
-    // Preparar dados para resposta
-    const responseData = {
+    // Responder com os dados em um formato consistente
+    return res.status(200).json({
       success: true,
-      count: clients.length,
-      total,
-      page,
-      pages: Math.ceil(total / limit),
+      message: `${clients.length} clientes encontrados`,
       data: clients
-    };
-    
-    console.log('Enviando resposta...');
-    // Retornar os resultados
-    res.status(200).json(responseData);
-    
-    console.log('=== FIM: getClients ===');
+    });
   } catch (error) {
-    console.error('=== ERRO: getClients ===');
-    console.error('Mensagem de erro:', error.message);
-    console.error('Stack trace:', error.stack);
-    
-    // Retornar erro com cabeçalhos CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    
-    res.status(500).json({
+    console.error('Erro ao buscar clientes:', error);
+    return res.status(500).json({
       success: false,
-      message: `Erro ao buscar clientes: ${error.message}`,
-      error: process.env.NODE_ENV === 'production' ? undefined : error.stack
+      message: 'Erro ao buscar clientes',
+      error: error.message
     });
   }
 };

@@ -670,6 +670,8 @@ const ClientsManager = {
     const tableBody = document.getElementById('clients-table-body');
     if (!tableBody) {
       console.error('Elemento clients-table-body não encontrado!');
+      console.error('Seletor usado: #clients-table-body');
+      console.error('HTML da página:', document.body.innerHTML);
       return;
     }
     
@@ -684,63 +686,68 @@ const ClientsManager = {
     
     // Adicionar cada cliente à tabela
     clients.forEach(client => {
-      console.log('Renderizando cliente:', client);
-      
-      const row = document.createElement('tr');
-      row.dataset.id = client._id;
-      
-      // Verificar propriedades obrigatórias
-      const name = client.name || 'Nome não definido';
-      const phone = client.phone || 'Telefone não definido';
-      const email = client.email || '-';
-      const status = client.status || 'active';
-      const tags = Array.isArray(client.tags) ? client.tags : [];
-      
-      // Formatar data da última visita
-      let lastVisitDisplay = '-';
-      if (client.lastVisit) {
-        try {
-          const lastVisitDate = new Date(client.lastVisit);
-          lastVisitDisplay = isNaN(lastVisitDate) ? '-' : lastVisitDate.toLocaleDateString('pt-BR');
-        } catch (e) {
-          console.warn('Erro ao formatar data da última visita:', e);
+      try {
+        console.log('Renderizando cliente:', client);
+        
+        const row = document.createElement('tr');
+        row.dataset.id = client._id;
+        
+        // Verificar propriedades obrigatórias
+        const name = client.name || 'Nome não definido';
+        const phone = client.phone || 'Telefone não definido';
+        const email = client.email || '-';
+        const status = client.status || 'active';
+        const tags = Array.isArray(client.tags) ? client.tags : [];
+        
+        // Formatar data da última visita
+        let lastVisitDisplay = '-';
+        if (client.lastVisit) {
+          try {
+            const lastVisitDate = new Date(client.lastVisit);
+            lastVisitDisplay = isNaN(lastVisitDate) ? '-' : lastVisitDate.toLocaleDateString('pt-BR');
+          } catch (e) {
+            console.warn('Erro ao formatar data da última visita:', e);
+          }
         }
+        
+        // Adicionar as células
+        row.innerHTML = `
+          <td>
+            <div class="form-check">
+              <input class="form-check-input client-checkbox" type="checkbox" value="${client._id}" data-id="${client._id}">
+            </div>
+          </td>
+          <td>${name}</td>
+          <td>${phone}</td>
+          <td>${email}</td>
+          <td>
+            ${tags.length > 0 
+              ? tags.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('') 
+              : '-'}
+          </td>
+          <td>
+            <span class="badge ${this.getStatusBadgeClass(status)}">
+              ${this.getStatusLabel(status)}
+            </span>
+          </td>
+          <td>${lastVisitDisplay}</td>
+          <td>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-primary edit-client-btn" data-client-id="${client._id}">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn btn-outline-danger delete-client-btn" data-client-id="${client._id}">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        
+        tableBody.appendChild(row);
+      } catch (err) {
+        console.error('Erro ao renderizar cliente:', err);
+        console.error('Cliente que causou erro:', client);
       }
-      
-      // Adicionar as células
-      row.innerHTML = `
-        <td>
-          <div class="form-check">
-            <input class="form-check-input client-checkbox" type="checkbox" value="${client._id}" data-id="${client._id}">
-          </div>
-        </td>
-        <td>${name}</td>
-        <td>${phone}</td>
-        <td>${email}</td>
-        <td>
-          ${tags.length > 0 
-            ? tags.map(tag => `<span class="badge bg-info me-1">${tag}</span>`).join('') 
-            : '-'}
-        </td>
-        <td>
-          <span class="badge ${this.getStatusBadgeClass(status)}">
-            ${this.getStatusLabel(status)}
-          </span>
-        </td>
-        <td>${lastVisitDisplay}</td>
-        <td>
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary edit-client-btn" data-client-id="${client._id}">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button class="btn btn-outline-danger delete-client-btn" data-client-id="${client._id}">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
-        </td>
-      `;
-      
-      tableBody.appendChild(row);
     });
     
     // Adicionar manipuladores de eventos para os botões

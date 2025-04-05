@@ -729,6 +729,149 @@ const App = {
         }
       }
     });
+  },
+
+  // Carregar página no container
+  async loadPage(pageName) {
+    console.log(`=== INÍCIO: Carregando página '${pageName}' ===`);
+    
+    // Obter elemento que contém as páginas
+    const pageContainer = document.getElementById('page-container');
+    if (!pageContainer) {
+      console.error('Container de páginas não encontrado!');
+      return;
+    }
+    
+    // Verificar se a página existe
+    const validPages = [
+      'dashboard', 'clients', 'promotions', 'messages', 'settings'
+    ];
+    
+    // Se não especificou página ou página inválida, carrega dashboard
+    if (!pageName || !validPages.includes(pageName)) {
+      console.log(`Página '${pageName}' inválida, redirecionando para dashboard`);
+      pageName = 'dashboard';
+    }
+    
+    // Atualizar a navegação
+    this.updateNavigation(pageName);
+    
+    try {
+      // Mostrar loader
+      pageContainer.innerHTML = `
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregando...</span>
+          </div>
+          <p class="mt-3">Carregando ${this.getPageTitle(pageName)}...</p>
+        </div>
+      `;
+      
+      // Carregar a página do servidor
+      const timestamp = new Date().getTime(); // Cache busting
+      const pageUrl = `/pages/${pageName}.html?t=${timestamp}`;
+      console.log(`Buscando conteúdo da página em: ${pageUrl}`);
+      
+      const response = await fetch(pageUrl);
+      
+      console.log(`Status da resposta: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Erro ao carregar página: ${response.status} ${response.statusText}`);
+      }
+      
+      const htmlContent = await response.text();
+      console.log(`Conteúdo recebido: ${htmlContent.substring(0, 100)}...`);
+      
+      // Inserir o HTML no container
+      pageContainer.innerHTML = htmlContent;
+      
+      // Executar scripts se houver
+      const scripts = pageContainer.querySelectorAll('script');
+      console.log(`Encontrados ${scripts.length} scripts na página`);
+      
+      scripts.forEach(oldScript => {
+        // Criar novo script para garantir que seja executado
+        const newScript = document.createElement('script');
+        if (oldScript.src) {
+          console.log(`Carregando script externo: ${oldScript.src}`);
+          newScript.src = oldScript.src;
+        } else {
+          console.log(`Executando script inline: ${oldScript.textContent.substring(0, 50)}...`);
+          newScript.textContent = oldScript.textContent;
+        }
+        
+        // Substituir o script antigo pelo novo para que seja executado
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+      });
+      
+      // Atualizar URL no histórico
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('page') !== pageName) {
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('page', pageName);
+        window.history.pushState({page: pageName}, '', newUrl.toString());
+      }
+      
+      // Verificar se a página foi carregada
+      const pageContent = pageContainer.innerHTML;
+      if (pageContent.trim().length < 50) {
+        console.error('A página carregada parece estar em branco ou vazia!');
+        console.error('Conteúdo atual:', pageContent);
+      }
+      
+      this.currentPage = pageName;
+      console.log(`=== FIM: Página '${pageName}' carregada com sucesso ===`);
+      
+      // Verificar se a página inicializou corretamente
+      setTimeout(() => {
+        if (pageName === 'clients' && document.getElementById('clients-table-body')) {
+          if (window.ClientsManager && typeof window.ClientsManager.init === 'function') {
+            console.log('Detectada página de clientes, verificando status de inicialização...');
+            // Verificar se há dados na tabela
+            const tableBody = document.getElementById('clients-table-body');
+            if (tableBody && tableBody.children.length <= 1) {
+              console.log('Tabela de clientes parece vazia, tentando inicializar novamente...');
+              window.ClientsManager.init();
+            }
+          }
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error(`Erro ao carregar página '${pageName}':`, error);
+      pageContainer.innerHTML = `
+        <div class="alert alert-danger m-4">
+          <h4 class="alert-heading">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Erro ao carregar página
+          </h4>
+          <p>Não foi possível carregar a página solicitada.</p>
+          <hr>
+          <p class="mb-0">Erro: ${error.message}</p>
+          <div class="mt-3">
+            <button class="btn btn-outline-danger" onclick="App.loadPage('${pageName}')">
+              <i class="fas fa-sync-alt me-1"></i>Tentar novamente
+            </button>
+            <button class="btn btn-outline-secondary ms-2" onclick="App.loadPage('dashboard')">
+              <i class="fas fa-home me-1"></i>Ir para Dashboard
+            </button>
+          </div>
+        </div>
+      `;
+    }
+  },
+
+  // Atualiza a navegação
+  updateNavigation(pageName) {
+    // Implemente a lógica para atualizar a navegação com base no nome da página
+    console.log(`Atualizando navegação para página: ${pageName}`);
+  },
+
+  // Obtém o título da página
+  getPageTitle(pageName) {
+    // Implemente a lógica para obter o título da página com base no nome
+    console.log(`Obtendo título da página: ${pageName}`);
+    return pageName.charAt(0).toUpperCase() + pageName.slice(1);
   }
 };
 
