@@ -8,8 +8,32 @@ const App = {
   // Inicialização da aplicação
   init() {
     console.log('Inicializando aplicação...');
+    
+    // Adicionar timeout para permitir acesso forçado
+    let connectionTimedOut = false;
+    const timeoutId = setTimeout(() => {
+      connectionTimedOut = true;
+      console.log('TIMEOUT: Permitindo acesso forçado após 10 segundos');
+      
+      // Verificar se ainda estamos na tela de carregamento
+      const pageContainer = document.getElementById('page-container');
+      if (pageContainer && pageContainer.innerText.includes('Verificando conexão')) {
+        this.setupEventListeners();
+        this.setupGlobalEventDelegation();
+        
+        // Mostrar interface com aviso de modo offline
+        this.showOfflineMode();
+      }
+    }, 10000);
+    
     this.testApiConnection()
       .then(connectionOk => {
+        // Cancelar o timeout se a conexão foi testada antes dele
+        clearTimeout(timeoutId);
+        
+        // Se já entrou pelo timeout, não fazer nada
+        if (connectionTimedOut) return;
+        
         if (connectionOk) {
           this.setupEventListeners();
           this.setupGlobalEventDelegation();
@@ -20,6 +44,12 @@ const App = {
         }
       })
       .catch(err => {
+        // Cancelar o timeout se a conexão foi testada antes dele
+        clearTimeout(timeoutId);
+        
+        // Se já entrou pelo timeout, não fazer nada
+        if (connectionTimedOut) return;
+        
         console.error('Erro na inicialização:', err);
         this.showConnectionError();
       });
@@ -296,7 +326,7 @@ const App = {
   },
 
   // Carrega os dados para o dashboard
-  async loadDashboard() {
+  async loadDashboard(forceOffline = false) {
     console.log('=== INÍCIO: loadDashboard ===');
     
     try {
@@ -306,22 +336,74 @@ const App = {
           el.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
         });
       
-      // Carregar estatísticas diretamente do backend
-      console.log('Carregando estatísticas...');
+      let stats;
       
-      // Buscar estatísticas com timeout para evitar espera infinita
-      const stats = await Promise.race([
-        API.get('/stats'),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout ao carregar estatísticas')), 10000)
-        )
-      ]);
+      // Se modo forçado, usar dados de exemplo
+      if (forceOffline) {
+        console.log('Usando dados de exemplo no modo offline forçado');
+        stats = {
+          success: true,
+          clients: 253,
+          messages: 1573,
+          promotions: 12,
+          deliveryRate: '95%',
+          timestamp: new Date().toISOString()
+        };
+      } else {
+        try {
+          // Buscar estatísticas com timeout para evitar espera infinita
+          console.log('Carregando estatísticas do servidor...');
+          stats = await Promise.race([
+            API.get('/stats'),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout ao carregar estatísticas')), 10000)
+            )
+          ]);
+        } catch (apiError) {
+          console.error('Erro ao buscar dados da API:', apiError);
+          if (!forceOffline) {
+            // Se falha na API, mostrar alerta e usar dados de exemplo
+            this.showToast('Erro ao conectar com o servidor. Exibindo dados de exemplo.', 'warning');
+            stats = {
+              success: true,
+              clients: 253,
+              messages: 1573,
+              promotions: 12,
+              deliveryRate: '95%',
+              timestamp: new Date().toISOString(),
+              isExample: true
+            };
+          }
+        }
+      }
       
-      console.log('Estatísticas recebidas:', stats);
+      console.log('Estatísticas recebidas ou geradas:', stats);
       
       // Verificar se temos dados válidos
       if (!stats) {
         throw new Error('Não foi possível obter dados do servidor');
+      }
+      
+      // Se estamos usando dados de exemplo, mostrar aviso
+      if (stats.isExample || forceOffline) {
+        const pageContainer = document.getElementById('page-container');
+        if (pageContainer) {
+          const warningBanner = document.createElement('div');
+          warningBanner.className = 'alert alert-warning alert-dismissible fade show mb-4';
+          warningBanner.innerHTML = `
+            <strong><i class="fas fa-exclamation-triangle me-2"></i>Modo de Demonstração</strong>
+            <p class="mb-0">Exibindo dados de exemplo. O servidor está indisponível.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+          `;
+          
+          // Inserir no início do container
+          const firstChild = pageContainer.firstChild;
+          if (firstChild) {
+            pageContainer.insertBefore(warningBanner, firstChild);
+          } else {
+            pageContainer.appendChild(warningBanner);
+          }
+        }
       }
       
       // Exibir dados brutos no elemento debug se existir
@@ -373,6 +455,16 @@ const App = {
         deliveryRateEl.textContent = rateValue;
       }
       
+      // Carregar dados de promoções recentes com dados de exemplo
+      if (forceOffline || stats.isExample) {
+        this.loadExampleRecentPromotions();
+        this.loadExampleUpcomingPromotions();
+      } else {
+        // Tentar carregar dados reais se disponíveis
+        this.loadRecentPromotions().catch(() => this.loadExampleRecentPromotions());
+        this.loadUpcomingPromotions().catch(() => this.loadExampleUpcomingPromotions());
+      }
+      
       console.log('=== FIM: loadDashboard - Sucesso ===');
     } catch (error) {
       console.error('=== ERRO: loadDashboard ===', error);
@@ -393,6 +485,123 @@ const App = {
         rawDataElement.classList.add('text-danger');
       }
     }
+  },
+
+  // Carregar promoções recentes de exemplo
+  loadExampleRecentPromotions() {
+    const recentPromosContainer = document.getElementById('recent-promos');
+    if (!recentPromosContainer) return;
+    
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const twoDaysAgo = new Date(today);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    
+    const examplePromos = [
+      {
+        name: 'Café Especial do Dia',
+        date: yesterday.toISOString(),
+        description: 'Descontos especiais em cafés Arábica selecionados',
+        recipients: 128,
+        status: 'Enviada'
+      },
+      {
+        name: 'Fidelidade Premium',
+        date: twoDaysAgo.toISOString(),
+        description: 'Ofertas exclusivas para clientes que compraram mais de 10 cafés no mês',
+        recipients: 57,
+        status: 'Enviada'
+      },
+      {
+        name: 'Lançamento Grãos Orgânicos',
+        date: twoDaysAgo.toISOString(),
+        description: 'Novos grãos orgânicos certificados disponíveis',
+        recipients: 203,
+        status: 'Enviada'
+      }
+    ];
+    
+    recentPromosContainer.innerHTML = examplePromos.map(promo => `
+      <div class="list-group-item promo-item ${promo.status === 'Enviada' ? 'completed' : 'active'}">
+        <div class="d-flex w-100 justify-content-between">
+          <h6 class="mb-1">${promo.name}</h6>
+          <small class="text-muted">${this.formatDate(promo.date)}</small>
+        </div>
+        <p class="mb-1 text-truncate-2">${promo.description || 'Promoção especial'}</p>
+        <div class="d-flex justify-content-between align-items-center">
+          <small class="text-muted">
+            <i class="fas fa-users me-1"></i>${promo.recipients} destinatários
+          </small>
+          <span class="badge bg-${promo.status === 'Enviada' ? 'success' : 'primary'}">
+            ${promo.status}
+          </span>
+        </div>
+      </div>
+    `).join('');
+  },
+  
+  // Carregar próximas promoções agendadas de exemplo
+  loadExampleUpcomingPromotions() {
+    const upcomingPromosContainer = document.getElementById('upcoming-promos');
+    if (!upcomingPromosContainer) return;
+    
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    
+    const examplePromos = [
+      {
+        id: 'example-1',
+        name: 'Happy Hour Sexta-feira',
+        scheduleDate: tomorrow.toISOString(),
+        description: 'Descontos especiais das 16h às 19h',
+        status: 'Agendada'
+      },
+      {
+        id: 'example-2',
+        name: 'Café da Manhã Especial',
+        scheduleDate: nextWeek.toISOString(),
+        description: 'Promoção para cafés da manhã com 20% de desconto',
+        status: 'Agendada'
+      }
+    ];
+    
+    upcomingPromosContainer.innerHTML = examplePromos.map(promo => `
+      <div class="list-group-item promo-item scheduled">
+        <div class="d-flex w-100 justify-content-between">
+          <h6 class="mb-1">${promo.name}</h6>
+          <small class="text-muted">${this.formatDate(promo.scheduleDate)}</small>
+        </div>
+        <p class="mb-1 text-truncate-2">${promo.description || 'Promoção agendada'}</p>
+        <div class="d-flex justify-content-between align-items-center">
+          <small class="text-muted">
+            <i class="fas fa-clock me-1"></i>${this.formatTime(promo.scheduleDate)}
+          </small>
+          <div>
+            <button class="btn btn-sm btn-outline-secondary me-1" data-promo-id="${promo.id}" data-action="edit">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" data-promo-id="${promo.id}" data-action="cancel">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    
+    // Adicionar manipuladores de eventos para os botões
+    upcomingPromosContainer.querySelectorAll('[data-action="edit"]').forEach(btn => {
+      btn.addEventListener('click', () => this.editPromotion(btn.getAttribute('data-promo-id')));
+    });
+    
+    upcomingPromosContainer.querySelectorAll('[data-action="cancel"]').forEach(btn => {
+      btn.addEventListener('click', () => this.cancelPromotion(btn.getAttribute('data-promo-id')));
+    });
   },
 
   // Adiciona um painel de depuração ao dashboard
@@ -923,6 +1132,50 @@ const App = {
     // Implemente a lógica para obter o título da página com base no nome
     console.log(`Obtendo título da página: ${pageName}`);
     return pageName.charAt(0).toUpperCase() + pageName.slice(1);
+  },
+
+  // Mostrar interface com aviso de modo offline
+  showOfflineMode() {
+    console.log('Mostrando interface de modo offline');
+    
+    // Criar elemento de aviso
+    const offlineDiv = document.createElement('div');
+    offlineDiv.className = 'alert alert-warning text-center mt-5 mx-auto';
+    offlineDiv.style.maxWidth = '80%';
+    offlineDiv.innerHTML = `
+      <h4><i class="fas fa-wifi-slash me-2"></i>Servidor Indisponível</h4>
+      <p>O servidor está demorando para responder ou está offline.</p>
+      <div class="mt-3">
+        <button class="btn btn-outline-warning me-2" id="retryConnection">
+          <i class="fas fa-sync me-2"></i>Tentar Novamente
+        </button>
+        <button class="btn btn-outline-primary" id="forceAccess">
+          <i class="fas fa-user-shield me-2"></i>Forçar Acesso (Modo Offline)
+        </button>
+      </div>
+    `;
+    
+    // Encontrar o conteúdo principal e inserir o aviso
+    const pageContainer = document.getElementById('page-container');
+    if (pageContainer) {
+      console.log('Inserindo aviso de modo offline no page-container');
+      pageContainer.innerHTML = '';
+      pageContainer.appendChild(offlineDiv);
+    } else {
+      console.log('page-container não encontrado, inserindo no body');
+      document.body.appendChild(offlineDiv);
+    }
+    
+    // Adicionar evento para o botão de retry
+    document.getElementById('retryConnection').addEventListener('click', () => {
+      window.location.reload();
+    });
+    
+    // Adicionar evento para o botão de forçar acesso offline
+    document.getElementById('forceAccess').addEventListener('click', () => {
+      UI.initNavigation();
+      this.loadDashboard(true);
+    });
   }
 };
 
