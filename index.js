@@ -75,6 +75,39 @@ app.use(fileUpload({
 // Middleware para logging de requisições
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  
+  // Registrar informações detalhadas sobre a requisição
+  if (req.url.startsWith('/api')) {
+    console.log('=== DETALHES DA REQUISIÇÃO ===');
+    console.log('URL:', req.url);
+    console.log('Método:', req.method);
+    console.log('Headers:', JSON.stringify(req.headers));
+    console.log('Query:', JSON.stringify(req.query));
+    console.log('Body:', JSON.stringify(req.body));
+  }
+  
+  // Capturar a resposta original para logar depois
+  const originalSend = res.send;
+  res.send = function(body) {
+    if (req.url.startsWith('/api')) {
+      console.log('=== DETALHES DA RESPOSTA ===');
+      console.log('Status:', res.statusCode);
+      console.log('Headers:', JSON.stringify(res._headers));
+      
+      // Tentar fazer parse do body se for JSON
+      try {
+        if (typeof body === 'string' && body.startsWith('{')) {
+          console.log('Body:', JSON.parse(body));
+        } else {
+          console.log('Body:', body);
+        }
+      } catch (e) {
+        console.log('Body não pode ser parseado:', body);
+      }
+    }
+    originalSend.apply(res, arguments);
+  };
+  
   next();
 });
 
@@ -234,4 +267,38 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Promessa rejeitada não tratada:');
   logger.error(reason);
+});
+
+// Adicionar uma rota de diagnóstico específica
+app.get('/api/debug/test', (req, res) => {
+  console.log('=== TESTE DE DIAGNÓSTICO ===');
+  
+  // Verificar conexão com MongoDB
+  const dbStatus = mongoose.connection.readyState === 1 ? 'conectado' : 'desconectado';
+  
+  // Dados para retornar
+  const diagnosticData = {
+    success: true,
+    server: {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      port: PORT
+    },
+    database: {
+      status: dbStatus,
+      uri: process.env.MONGODB_URI.replace(/mongodb:\/\/([^:]+):([^@]+)@/, 'mongodb://***:***@')
+    },
+    request: {
+      headers: req.headers,
+      ip: req.ip
+    }
+  };
+  
+  // Definir cabeçalhos para evitar cache
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
+  // Enviar resposta
+  res.status(200).json(diagnosticData);
 });

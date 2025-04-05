@@ -29,6 +29,110 @@ const API = {
     return headers;
   },
 
+  // Método de teste de conexão com a API
+  async testConnection() {
+    try {
+      console.log('=== Testando conexão com a API ===');
+      
+      // Array de endpoints para testar
+      const endpoints = [
+        '/status',
+        '/stats',
+        '/debug/test'
+      ];
+      
+      const results = {
+        success: false,
+        timestamp: new Date().toISOString(),
+        endpointTests: [],
+        overallStatus: 'Falha na conexão'
+      };
+      
+      // Testar cada endpoint
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`Testando endpoint: ${endpoint}`);
+          const timestamp = new Date().getTime();
+          const testUrl = `${this.baseUrl}${endpoint}?t=${timestamp}`;
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          
+          const startTime = performance.now();
+          const response = await fetch(testUrl, {
+            headers: this.getAuthHeaders(),
+            signal: controller.signal,
+            cache: 'no-store'
+          });
+          const endTime = performance.now();
+          
+          clearTimeout(timeoutId);
+          
+          console.log(`Status da resposta para ${endpoint}:`, response.status);
+          
+          let responseData = null;
+          let responseText = null;
+          
+          try {
+            responseText = await response.text();
+            if (responseText) {
+              responseData = JSON.parse(responseText);
+            }
+          } catch (e) {
+            console.error(`Erro ao processar resposta de ${endpoint}:`, e);
+          }
+          
+          const endpointResult = {
+            endpoint,
+            success: response.ok,
+            status: response.status,
+            statusText: response.statusText,
+            time: Math.round(endTime - startTime),
+            headers: Object.fromEntries([...response.headers.entries()]),
+            data: responseData,
+            rawResponse: responseText
+          };
+          
+          results.endpointTests.push(endpointResult);
+          
+          // Se pelo menos um endpoint for bem-sucedido, consideramos conexão estabelecida
+          if (response.ok) {
+            results.success = true;
+          }
+        } catch (endpointError) {
+          console.error(`Erro ao testar endpoint ${endpoint}:`, endpointError);
+          
+          results.endpointTests.push({
+            endpoint,
+            success: false,
+            error: endpointError.message,
+            errorType: endpointError.name,
+            isAborted: endpointError.name === 'AbortError'
+          });
+        }
+      }
+      
+      // Atualizar status geral
+      if (results.success) {
+        results.overallStatus = 'Conexão estabelecida';
+      } else if (results.endpointTests.some(test => test.isAborted)) {
+        results.overallStatus = 'Timeout de conexão';
+      }
+      
+      console.log('Resultados do teste de conexão:', results);
+      return results;
+    } catch (error) {
+      console.error('Erro fatal no teste de conexão:', error);
+      return {
+        success: false,
+        error: error.message,
+        errorType: error.name,
+        timestamp: new Date().toISOString(),
+        overallStatus: 'Erro fatal no teste'
+      };
+    }
+  },
+
   // Métodos genéricos para requisições HTTP
   async get(endpoint) {
     try {

@@ -8,9 +8,247 @@ const App = {
   // Inicialização da aplicação
   init() {
     console.log('Inicializando aplicação...');
-    this.setupEventListeners();
-    this.setupGlobalEventDelegation();
-    this.loadDashboard();
+    this.testApiConnection()
+      .then(connectionOk => {
+        if (connectionOk) {
+          this.setupEventListeners();
+          this.setupGlobalEventDelegation();
+          this.loadDashboard();
+        } else {
+          // Exibir mensagem de erro de conexão
+          this.showConnectionError();
+        }
+      })
+      .catch(err => {
+        console.error('Erro na inicialização:', err);
+        this.showConnectionError();
+      });
+  },
+  
+  // Testar conexão com a API antes de carregar os dados
+  async testApiConnection() {
+    try {
+      console.log('Testando conexão com a API...');
+      
+      // Mostrar indicação de carregamento no container
+      const pageContainer = document.getElementById('page-container');
+      if (pageContainer) {
+        pageContainer.innerHTML = `
+          <div class="d-flex flex-column align-items-center justify-content-center my-5">
+            <div class="spinner-border text-primary mb-3" role="status">
+              <span class="visually-hidden">Testando conexão...</span>
+            </div>
+            <h5>Verificando conexão com o servidor...</h5>
+            <p class="text-muted">Isto pode levar alguns instantes</p>
+          </div>
+        `;
+      }
+      
+      const result = await API.testConnection();
+      console.log('Resultado do teste de conexão:', result);
+      
+      // Verificar se pelo menos um endpoint está funcionando
+      if (result.success) {
+        console.log('Conexão com API estabelecida com sucesso');
+        
+        // Verificar se o endpoint /stats está funcionando
+        const statsTest = result.endpointTests.find(test => test.endpoint === '/stats');
+        if (statsTest && statsTest.success) {
+          console.log('Endpoint /stats está funcionando, carregando dashboard...');
+          return true;
+        } else {
+          console.warn('Endpoint /stats não está funcionando, mas outros endpoints sim');
+          // Tentar carregar de qualquer forma
+          return true;
+        }
+      } else {
+        console.error('Falha ao conectar com a API:', result.overallStatus);
+        
+        // Analisar os resultados para fornecer diagnóstico mais específico
+        const allTimeout = result.endpointTests.every(test => test.isAborted);
+        if (allTimeout) {
+          console.error('Todos os endpoints resultaram em timeout');
+        }
+        
+        return false;
+      }
+    } catch (error) {
+      console.error('Erro fatal ao testar conexão com API:', error);
+      return false;
+    }
+  },
+  
+  // Exibir mensagem de erro de conexão
+  showConnectionError() {
+    console.log('Exibindo mensagem de erro de conexão');
+    
+    // Criar elemento de erro
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'alert alert-danger text-center mt-5 mx-auto';
+    errorDiv.style.maxWidth = '80%';
+    errorDiv.innerHTML = `
+      <h4><i class="fas fa-exclamation-triangle me-2"></i>Erro de Conexão</h4>
+      <p>Não foi possível conectar-se ao servidor. Isto pode ocorrer pelos seguintes motivos:</p>
+      <ul class="text-start">
+        <li>O servidor API não está respondendo</li>
+        <li>Problemas com CORS (Cross-Origin Resource Sharing)</li>
+        <li>O endpoint de API solicitado não existe</li>
+        <li>Problemas com autenticação ou token JWT</li>
+      </ul>
+      <p>Verifique o console do navegador (F12) para mais detalhes sobre o erro.</p>
+      <div class="mt-3">
+        <button class="btn btn-outline-danger me-2" id="retryConnection">
+          <i class="fas fa-sync me-2"></i>Tentar Novamente
+        </button>
+        <button class="btn btn-outline-primary" id="showDiagnosticInfo">
+          <i class="fas fa-search me-2"></i>Mostrar Diagnóstico
+        </button>
+      </div>
+    `;
+    
+    // Encontrar o conteúdo principal e inserir o erro
+    const pageContainer = document.getElementById('page-container');
+    if (pageContainer) {
+      console.log('Inserindo mensagem de erro no page-container');
+      pageContainer.innerHTML = '';
+      pageContainer.appendChild(errorDiv);
+    } else {
+      console.log('page-container não encontrado, inserindo no body');
+      document.body.appendChild(errorDiv);
+    }
+    
+    // Adicionar evento para o botão de retry
+    document.getElementById('retryConnection').addEventListener('click', () => {
+      window.location.reload();
+    });
+    
+    // Adicionar evento para o botão de diagnóstico
+    document.getElementById('showDiagnosticInfo').addEventListener('click', () => {
+      this.showDiagnosticInfo();
+    });
+  },
+  
+  // Mostrar informações de diagnóstico
+  showDiagnosticInfo() {
+    console.log('Mostrando informações de diagnóstico');
+    
+    // Informações coletadas do navegador
+    const diagnosticInfo = {
+      userAgent: navigator.userAgent,
+      url: window.location.href,
+      baseUrl: window.location.origin,
+      localStorage: localStorage.getItem('authToken') ? 'Token presente' : 'Token ausente',
+      corsMode: 'Same Origin',
+      apiUrl: API.baseUrl,
+      currentTime: new Date().toISOString()
+    };
+    
+    // Criar e mostrar modal de diagnóstico
+    const modalHTML = `
+      <div class="modal fade" id="diagnosticModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="fas fa-stethoscope me-2"></i>Diagnóstico de Conexão
+              </h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <h6>Informações do Cliente:</h6>
+              <pre class="bg-light p-3 rounded">${JSON.stringify(diagnosticInfo, null, 2)}</pre>
+              
+              <h6 class="mt-3">Tentando conexão com API:</h6>
+              <div id="api-test-result" class="bg-light p-3 rounded">
+                <div class="d-flex justify-content-center">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Testando...</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="mt-3">
+                <button class="btn btn-sm btn-outline-primary" id="test-api-connection">
+                  <i class="fas fa-plug me-1"></i>Testar API
+                </button>
+                <button class="btn btn-sm btn-outline-secondary ms-2" id="copy-diagnostic">
+                  <i class="fas fa-copy me-1"></i>Copiar Diagnóstico
+                </button>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Adicionar modal ao DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHTML;
+    document.body.appendChild(modalContainer);
+    
+    // Mostrar o modal
+    const diagnosticModal = new bootstrap.Modal(document.getElementById('diagnosticModal'));
+    diagnosticModal.show();
+    
+    // Adicionar evento para o botão de teste
+    document.getElementById('test-api-connection').addEventListener('click', async () => {
+      const resultDiv = document.getElementById('api-test-result');
+      resultDiv.innerHTML = `
+        <div class="d-flex justify-content-center">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Testando...</span>
+          </div>
+        </div>
+      `;
+      
+      try {
+        // Testar vários endpoints para diagnóstico
+        let testResults = '';
+        
+        // Testar status
+        try {
+          const response = await fetch(`${API.baseUrl}/status`, { 
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store'
+          });
+          const data = await response.text();
+          testResults += `GET /status: ${response.status} ${response.statusText}\n`;
+          testResults += `Resposta: ${data}\n\n`;
+        } catch (e) {
+          testResults += `GET /status: ERRO - ${e.message}\n\n`;
+        }
+        
+        // Testar stats
+        try {
+          const response = await fetch(`${API.baseUrl}/stats`, { 
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store'
+          });
+          const data = await response.text();
+          testResults += `GET /stats: ${response.status} ${response.statusText}\n`;
+          testResults += `Resposta: ${data}\n\n`;
+        } catch (e) {
+          testResults += `GET /stats: ERRO - ${e.message}\n\n`;
+        }
+        
+        resultDiv.innerHTML = `<pre>${testResults}</pre>`;
+      } catch (error) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">Erro ao testar: ${error.message}</div>`;
+      }
+    });
+    
+    // Adicionar evento para o botão de cópia
+    document.getElementById('copy-diagnostic').addEventListener('click', () => {
+      const diagnosticText = JSON.stringify(diagnosticInfo, null, 2);
+      navigator.clipboard.writeText(diagnosticText)
+        .then(() => alert('Informações de diagnóstico copiadas para a área de transferência'))
+        .catch(err => console.error('Erro ao copiar:', err));
+    });
   },
 
   // Configuração dos listeners de eventos

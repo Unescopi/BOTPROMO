@@ -8,15 +8,67 @@ const messageService = require('../services/messageService');
 const Message = require('../models/Message');
 const Client = require('../models/Client');
 const Promotion = require('../models/Promotion');
+const mongoose = require('mongoose');
 
 // Rota de status
 router.get('/status', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'API em funcionamento',
-    timestamp: new Date(),
-    version: '1.0.0'
-  });
+  try {
+    // Verifica a conexão com MongoDB
+    const dbStatus = mongoose.connection.readyState;
+    let dbStatusText;
+    
+    switch(dbStatus) {
+      case 0: dbStatusText = 'Desconectado'; break;
+      case 1: dbStatusText = 'Conectado'; break;
+      case 2: dbStatusText = 'Conectando'; break;
+      case 3: dbStatusText = 'Desconectando'; break;
+      default: dbStatusText = 'Desconhecido';
+    }
+    
+    // Coleta estatísticas básicas
+    const statusData = {
+      success: true,
+      message: 'API em funcionamento',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+      server: {
+        platform: process.platform,
+        uptime: process.uptime(),
+        memoryUsage: process.memoryUsage()
+      },
+      database: {
+        status: dbStatus,
+        statusText: dbStatusText,
+        connected: dbStatus === 1
+      },
+      request: {
+        ip: req.ip,
+        headers: req.headers,
+        protocol: req.protocol,
+        originalUrl: req.originalUrl
+      }
+    };
+    
+    // Define cabeçalhos para evitar cache
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    // Retorna os dados de status
+    res.status(200).json(statusData);
+  } catch (error) {
+    console.error('Erro ao obter status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao obter status da API',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Webhook da Evolution API
@@ -41,6 +93,15 @@ router.get('/webhook-info', (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     console.log('=== Processando requisição /stats ===');
+    console.log('Headers da requisição:', JSON.stringify(req.headers));
+    
+    // Definir cabeçalhos para evitar cache e permitir CORS
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     
     // Obtém estatísticas básicas do banco de dados
     console.log('Buscando contagem de clientes...');
@@ -93,12 +154,7 @@ router.get('/stats', async (req, res) => {
       timestamp: new Date().toISOString()
     };
     
-    console.log('Dados de estatísticas:', statsData);
-    
-    // Define cache-control para evitar problemas de cache
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    console.log('Dados de estatísticas para resposta:', statsData);
     
     // Retorna as estatísticas
     res.status(200).json(statsData);
