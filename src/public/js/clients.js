@@ -753,7 +753,111 @@ const ClientsManager = {
     }
     
     console.log('=== FIM: renderClientsTable ===');
-  }
+  },
+  
+  addClientButtonHandlers() {
+    console.log('=== INÍCIO: addClientButtonHandlers ===');
+    
+    // Buscar todos os botões de edição
+    const editButtons = document.querySelectorAll('.edit-client-btn');
+    console.log(`Encontrados ${editButtons.length} botões de edição`);
+    
+    editButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const clientId = button.getAttribute('data-client-id');
+        console.log(`Botão de edição clicado para o cliente: ${clientId}`);
+        this.editClient(clientId);
+      });
+    });
+    
+    // Buscar todos os botões de exclusão
+    const deleteButtons = document.querySelectorAll('.delete-client-btn');
+    console.log(`Encontrados ${deleteButtons.length} botões de exclusão`);
+    
+    deleteButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const clientId = button.getAttribute('data-client-id');
+        console.log(`Botão de exclusão clicado para o cliente: ${clientId}`);
+        
+        if (confirm('Tem certeza que deseja excluir este cliente?')) {
+          this.deleteClient(clientId);
+        }
+      });
+    });
+    
+    // Atualizar contador quando checkboxes forem alterados
+    const checkboxes = document.querySelectorAll('.client-checkbox');
+    console.log(`Encontrados ${checkboxes.length} checkboxes de clientes`);
+    
+    checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', () => {
+        this.updateSelectedCount();
+      });
+    });
+    
+    // Adicionar manipulador para o checkbox "selecionar todos"
+    const selectAllCheckbox = document.getElementById('select-all-clients');
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener('change', (e) => {
+        this.toggleSelectAll(e.target.checked);
+      });
+    }
+    
+    console.log('=== FIM: addClientButtonHandlers ===');
+  },
+  
+  updateTagFilters(clients) {
+    const tagFilter = document.getElementById('tag-filter');
+    if (!tagFilter) return;
+    
+    // Limpar opções existentes exceto a primeira (Todas as tags)
+    while (tagFilter.options.length > 1) {
+      tagFilter.remove(1);
+    }
+    
+    // Coletar todas as tags únicas
+    const allTags = new Set();
+    clients.forEach(client => {
+      if (client.tags && Array.isArray(client.tags)) {
+        client.tags.forEach(tag => {
+          if (tag && tag.trim()) {
+            allTags.add(tag.trim());
+          }
+        });
+      }
+    });
+    
+    // Adicionar as tags ordenadas alfabeticamente
+    const sortedTags = Array.from(allTags).sort();
+    
+    sortedTags.forEach(tag => {
+      const option = document.createElement('option');
+      option.value = tag;
+      option.textContent = tag;
+      tagFilter.appendChild(option);
+    });
+  },
+  
+  updateCounters(clients) {
+    // Atualizar contador total
+    const totalCount = document.getElementById('total-count');
+    if (totalCount) {
+      totalCount.textContent = clients.length;
+    }
+    
+    // Resetar contador de selecionados
+    const selectedCount = document.getElementById('selected-count');
+    if (selectedCount) {
+      selectedCount.textContent = '0';
+    }
+    
+    // Desabilitar botões de ação
+    const addTagBtn = document.getElementById('add-tag-btn');
+    const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+    
+    if (addTagBtn) addTagBtn.disabled = true;
+    if (deleteSelectedBtn) deleteSelectedBtn.disabled = true;
+  },
 };
 
 // Inicialização quando o DOM estiver carregado

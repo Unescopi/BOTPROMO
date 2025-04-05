@@ -294,188 +294,22 @@
 <script>
   // Script específico para a página de clientes
   document.addEventListener('DOMContentLoaded', function() {
-    // Inicializa os componentes da página de clientes
-    initClientsPage();
+    console.log('DOM carregado no HTML da página de clientes');
+    // Inicializa ClientsManager se ele já estiver carregado
+    if (window.ClientsManager && typeof window.ClientsManager.init === 'function') {
+      window.ClientsManager.init();
+    } else {
+      console.error('ClientsManager não encontrado ou método init não disponível');
+      
+      // Tenta carregar novamente após um pequeno delay
+      setTimeout(() => {
+        if (window.ClientsManager && typeof window.ClientsManager.init === 'function') {
+          console.log('ClientsManager carregado após delay');
+          window.ClientsManager.init();
+        } else {
+          console.error('ClientsManager ainda não está disponível após delay');
+        }
+      }, 1000);
+    }
   });
-
-  function initClientsPage() {
-    // Carrega a lista de clientes
-    loadClients();
-    
-    // Carrega as tags para o filtro
-    loadTags();
-    
-    // Configura os manipuladores de eventos
-    setupEventHandlers();
-  }
-
-  // Função para carregar a lista de clientes
-  async function loadClients() {
-    try {
-      const clients = await API.clients.getAll();
-      renderClientsTable(clients);
-    } catch (error) {
-      console.error('Erro ao carregar clientes:', error);
-      UI.showToast('Erro ao carregar a lista de clientes', 'danger');
-    }
-  }
-
-  // Função para renderizar a tabela de clientes
-  function renderClientsTable(clients) {
-    const tableBody = document.getElementById('clients-table-body');
-    
-    if (!clients || clients.length === 0) {
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="8" class="text-center py-4">
-            <i class="fas fa-info-circle me-2"></i>Nenhum cliente encontrado
-          </td>
-        </tr>
-      `;
-      return;
-    }
-    
-    tableBody.innerHTML = clients.map(client => `
-      <tr>
-        <td>
-          <div class="form-check">
-            <input class="form-check-input client-checkbox" type="checkbox" value="${client._id}">
-          </div>
-        </td>
-        <td>${client.name}</td>
-        <td>${client.phone}</td>
-        <td>${client.email || '-'}</td>
-        <td>
-          ${client.tags && client.tags.length > 0 
-            ? client.tags.map(tag => `<span class="client-tag">${tag}</span>`).join('')
-            : '<span class="text-muted">Sem tags</span>'
-          }
-        </td>
-        <td>
-          <span class="badge ${getStatusBadgeClass(client.status)}">${getStatusLabel(client.status)}</span>
-        </td>
-        <td>${client.lastVisit ? formatDate(client.lastVisit) : 'Nunca'}</td>
-        <td>
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary edit-client" data-id="${client._id}">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button class="btn btn-outline-danger delete-client" data-id="${client._id}">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
-    
-    // Atualiza o contador
-    document.getElementById('total-count').textContent = clients.length;
-    
-    // Adiciona manipuladores de eventos para os botões
-    addClientButtonHandlers();
-  }
-
-  // Função para adicionar manipuladores de eventos aos botões da tabela
-  function addClientButtonHandlers() {
-    // Botões de edição
-    document.querySelectorAll('.edit-client').forEach(btn => {
-      btn.addEventListener('click', () => editClient(btn.getAttribute('data-id')));
-    });
-    
-    // Botões de exclusão
-    document.querySelectorAll('.delete-client').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const clientId = btn.getAttribute('data-id');
-        // Marca o checkbox do cliente
-        document.querySelector(`.client-checkbox[value="${clientId}"]`).checked = true;
-        updateSelectedCount();
-        // Abre o modal de confirmação
-        showDeleteConfirmModal();
-      });
-    });
-    
-    // Checkboxes
-    document.querySelectorAll('.client-checkbox').forEach(checkbox => {
-      checkbox.addEventListener('change', updateSelectedCount);
-    });
-  }
-
-  // Função para configurar os manipuladores de eventos
-  function setupEventHandlers() {
-    // Checkbox "Selecionar todos"
-    document.getElementById('select-all-clients')?.addEventListener('change', (e) => {
-      document.querySelectorAll('.client-checkbox').forEach(checkbox => {
-        checkbox.checked = e.target.checked;
-      });
-      updateSelectedCount();
-    });
-    
-    // Botão de importar clientes
-    document.getElementById('import-btn')?.addEventListener('click', importClients);
-    
-    // Botão de exportar clientes
-    document.getElementById('export-clients-btn')?.addEventListener('click', exportClients);
-    
-    // Botão de adicionar tag
-    document.getElementById('add-tag-btn')?.addEventListener('click', showAddTagModal);
-    
-    // Botão de confirmar adição de tag
-    document.getElementById('confirm-add-tag-btn')?.addEventListener('click', addTagToSelected);
-    
-    // Botão de excluir selecionados
-    document.getElementById('delete-selected-btn')?.addEventListener('click', showDeleteConfirmModal);
-    
-    // Botão de confirmar exclusão
-    document.getElementById('confirm-delete-btn')?.addEventListener('click', deleteSelected);
-    
-    // Filtros
-    document.getElementById('client-search')?.addEventListener('input', applyFilters);
-    document.getElementById('tag-filter')?.addEventListener('change', applyFilters);
-    document.getElementById('status-filter')?.addEventListener('change', applyFilters);
-    document.getElementById('reset-filters')?.addEventListener('click', resetFilters);
-    
-    // Botão de salvar cliente
-    document.getElementById('save-client-btn')?.addEventListener('click', saveClient);
-  }
-
-  // Função para atualizar o contador de selecionados
-  function updateSelectedCount() {
-    const selectedCount = document.querySelectorAll('.client-checkbox:checked').length;
-    document.getElementById('selected-count').textContent = selectedCount;
-    
-    // Habilita/desabilita botões de ação em massa
-    const addTagBtn = document.getElementById('add-tag-btn');
-    const deleteSelectedBtn = document.getElementById('delete-selected-btn');
-    
-    if (addTagBtn) addTagBtn.disabled = selectedCount === 0;
-    if (deleteSelectedBtn) deleteSelectedBtn.disabled = selectedCount === 0;
-  }
-
-  // Função para obter a classe do badge de status
-  function getStatusBadgeClass(status) {
-    switch (status) {
-      case 'active': return 'bg-success';
-      case 'inactive': return 'bg-secondary';
-      case 'blocked': return 'bg-danger';
-      default: return 'bg-secondary';
-    }
-  }
-
-  // Função para obter o rótulo do status
-  function getStatusLabel(status) {
-    switch (status) {
-      case 'active': return 'Ativo';
-      case 'inactive': return 'Inativo';
-      case 'blocked': return 'Bloqueado';
-      default: return 'Desconhecido';
-    }
-  }
-
-  // Função para formatar uma data
-  function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR');
-  }
-
-  // Implementação das funções restantes será adicionada no arquivo JavaScript específico
 </script>
